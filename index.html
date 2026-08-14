@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QuotePilot — BOM-Powered Enquiry Pricing</title>
+<title>BOM Price Matcher — Enquiry Pricing Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -30,7 +30,7 @@
 
   /* ---------- Header ---------- */
   .hero{
-    color:#fff; padding:44px 36px 34px; margin:0 0 22px;
+    color:#fff; padding:32px 36px 26px; margin:0 0 18px;
     border-radius:0 0 18px 18px;
     background-image:
       linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
@@ -45,11 +45,11 @@
     border:1px solid rgba(255,255,255,.08); box-shadow:0 0 0 60px rgba(255,255,255,.02) inset;
   }
   .hero-top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; position:relative; z-index:1;}
-  .brand-row{display:flex; align-items:center; margin-bottom:18px;}
+  .brand-row{display:flex; align-items:center; margin-bottom:10px;}
   .brand-badge{
     display:inline-flex; align-items:center;
   }
-  .brand-badge img{ height:64px; display:block; filter:drop-shadow(0 2px 8px rgba(0,0,0,.35)); }
+  .brand-badge img{ height:46px; display:block; filter:drop-shadow(0 2px 8px rgba(0,0,0,.35)); }
   .hero::before{
     content:""; position:absolute; right:-30px; bottom:-50px; width:520px; height:300px;
     background-image:var(--logo-data);
@@ -183,7 +183,7 @@
       <div>
         <div class="brand-row"><div class="brand-badge"><img id="brandLogo" alt="Leapfrog Engineering Services"></div></div>
         <div class="eyebrow"><span class="dot"></span>EPC &middot; Automation &middot; Fire &middot; HVAC &middot; Instrumentation</div>
-        <h1>QuotePilot</h1>
+        <h1>BOM Price Matcher</h1>
         <p>Auto-fill new enquiry pricing by matching part numbers &mdash; or descriptions, when part numbers don't line up &mdash; against your historical BOM library.</p>
       </div>
       <div class="hero-icon" aria-hidden="true">
