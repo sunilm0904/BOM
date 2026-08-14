@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOM Price Matcher — Enquiry Pricing Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#12202E; --paper:#F3F6F9; --panel:#FFFFFF;
+    --navy:#0A2E4D; --navy-deep:#071E33; --blue:#2E7DB8; --blue-soft:#EAF3FA;
+    --copper:#B5651D; --copper-soft:#F7ECE0;
+    --grid:#D9E2EA; --grid-soft:#E9EFF4; --muted:#5C6B7A;
+    --green:#2F6B3A; --green-bg:#E6F1E7;
+    --amber:#8A5A00; --amber-bg:#FBF0DA;
+    --skyblue:#1D5DA6; --skyblue-bg:#E7F0FA;
+    --red:#A33228; --red-bg:#FBEAE7;
+    --shadow-sm: 0 1px 2px rgba(10,30,50,.05);
+    --shadow-md: 0 1px 2px rgba(10,30,50,.04), 0 10px 28px rgba(10,30,50,.07);
+    --font-display: 'Segoe UI Semibold', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px 72px;}
+
+  /* ---------- Header ---------- */
+  .hero{
+    color:#fff; padding:44px 36px 34px; margin:0 0 22px;
+    border-radius:0 0 18px 18px;
+    background-image:
+      linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px),
+      radial-gradient(1100px 240px at 15% -20%, rgba(46,125,184,.35), transparent 60%),
+      linear-gradient(135deg, var(--navy) 0%, var(--navy-deep) 100%);
+    background-size:26px 26px, 26px 26px, auto, auto;
+    position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:"";position:absolute; right:-60px; top:-60px; width:280px; height:280px; border-radius:50%;
+    border:1px solid rgba(255,255,255,.08); box-shadow:0 0 0 60px rgba(255,255,255,.02) inset;
+  }
+  .hero-top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; position:relative;}
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:1.8px;
+    text-transform:uppercase; color:#BFE0FF; margin:0 0 10px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:#5FC0FF;box-shadow:0 0 0 3px rgba(95,192,255,.25);}
+  .hero h1{margin:0 0 8px; font-family:var(--font-display); font-weight:700; font-size:30px; letter-spacing:-0.01em; line-height:1.15;}
+  .hero p{margin:0; font-size:14.5px; color:#CFE0F0; max-width:640px; line-height:1.55;}
+  .hero-icon{
+    width:56px;height:56px;border-radius:14px;flex:none;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  .stepper{display:flex; align-items:center; gap:0; margin-top:28px; position:relative; max-width:520px;}
+  .step{display:flex; align-items:center; gap:10px; flex:none;}
+  .step .num{
+    width:26px;height:26px;border-radius:50%; display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono); font-size:12px; font-weight:700;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.28); color:#fff;
+  }
+  .step .lab{font-size:12.5px; color:#CFE0F0; font-weight:600; letter-spacing:.2px;}
+  .step-line{flex:1; height:1px; background:repeating-linear-gradient(90deg, rgba(255,255,255,.35) 0 6px, transparent 6px 12px); margin:0 14px; min-width:40px;}
+
+  /* ---------- Panels ---------- */
+  .panel{
+    background:var(--panel); border:1px solid var(--grid); border-radius:12px;
+    margin-top:18px; padding:26px 28px; box-shadow:var(--shadow-md);
+  }
+  .panel h2{
+    font-family:var(--font-display); font-size:12.5px; margin:0 0 5px; letter-spacing:1.2px;
+    text-transform:uppercase; color:var(--blue); font-weight:700;
+  }
+  .panel .sub{font-size:13px; color:var(--muted); margin:0 0 18px; line-height:1.5;}
+
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  @media (max-width:640px){ .row2{grid-template-columns:1fr;} }
+
+  .drop{
+    border:1.5px dashed var(--grid); border-radius:10px; padding:22px 18px; text-align:center;
+    background:linear-gradient(180deg, #FCFDFE 0%, #F8FAFC 100%); cursor:pointer;
+    transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  }
+  .drop:hover{ border-color:var(--blue); box-shadow:0 6px 20px rgba(46,125,184,.12); transform:translateY(-1px); }
+  .drop:active{ transform:translateY(0); }
+  .drop.dragging{ border-color:var(--blue); background:var(--blue-soft); box-shadow:0 0 0 3px rgba(46,125,184,.15); transform:translateY(-1px) scale(1.01); }
+  .drop input{display:none;}
+  .drop .icon{
+    width:38px;height:38px;margin:0 auto 10px;border-radius:10px;background:var(--blue-soft);
+    display:flex;align-items:center;justify-content:center;color:var(--blue);
+  }
+  .drop .lbl{font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:3px;}
+  .drop .hint{font-size:11.5px; color:var(--muted);}
+  .filelist{margin-top:12px; font-size:12px; color:var(--ink); text-align:left;}
+  .filelist div{
+    padding:5px 8px; margin-top:4px; border-radius:5px; background:var(--blue-soft);
+    font-family:var(--font-mono); font-size:11.5px; color:var(--navy);
+  }
+
+  .btnrow{display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;}
+  button{
+    font-family:var(--font-body); font-size:13px; font-weight:700;
+    padding:11px 20px; border-radius:8px; border:1px solid var(--navy);
+    background:var(--navy); color:#fff; cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+    box-shadow:0 1px 2px rgba(10,30,50,.15);
+  }
+  button:hover:not(:disabled){ background:var(--navy-deep); box-shadow:0 6px 16px rgba(10,46,77,.28); transform:translateY(-1px); }
+  button:active:not(:disabled){ transform:translateY(0); }
+  button.secondary{background:#fff; color:var(--navy); border-color:var(--grid);}
+  button.secondary:hover:not(:disabled){ background:var(--blue-soft); border-color:var(--blue); box-shadow:0 4px 12px rgba(46,125,184,.12); }
+  button:disabled{opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none;}
+
+  /* ---------- Stats ---------- */
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-top:4px;}
+  .stat{
+    background:#fff; border:1px solid var(--grid); border-radius:10px; padding:16px 18px;
+    box-shadow:var(--shadow-sm); animation:riseIn .35s ease both;
+  }
+  .stat .n{font-family:var(--font-display); font-size:24px; font-weight:700;}
+  .stat .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:3px; font-weight:600;}
+
+  /* ---------- Table ---------- */
+  table{width:100%; border-collapse:collapse; margin-top:14px; font-size:12.5px;}
+  th{
+    text-align:left; background:var(--navy); color:#fff; padding:11px 12px; font-size:10.5px;
+    text-transform:uppercase; letter-spacing:.6px; position:sticky; top:0; font-weight:700;
+  }
+  th:first-child{border-radius:8px 0 0 0;} th:last-child{border-radius:0 8px 0 0;}
+  td{padding:9px 12px; border-bottom:1px solid var(--grid-soft); vertical-align:top;}
+  tbody tr{transition:background .1s ease;}
+  tbody tr:nth-child(even) td{background:#FAFCFE;}
+  tbody tr:hover td{background:var(--blue-soft);}
+  .pn{font-family:var(--font-mono); font-weight:700; color:var(--navy);}
+  .price{font-family:var(--font-mono); text-align:right; font-weight:600;}
+  .src{color:var(--muted); font-size:11.5px;}
+
+  .stamp{
+    display:inline-block; border:2px solid; border-radius:4px; padding:3px 9px;
+    font-size:10.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase;
+    transform:rotate(-3deg); box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);
+  }
+  .stamp.exact{color:var(--green); border-color:var(--green); background:var(--green-bg);}
+  .stamp.fuzzy{color:var(--amber); border-color:var(--amber); background:var(--amber-bg);}
+  .stamp.desc{color:var(--skyblue); border-color:var(--skyblue); background:var(--skyblue-bg);}
+  .stamp.none{color:var(--red); border-color:var(--red); background:var(--red-bg);}
+
+  .tablewrap{max-height:480px; overflow:auto; border:1px solid var(--grid); border-radius:10px; margin-top:8px;}
+  .empty{padding:40px; text-align:center; color:var(--muted); font-size:13px;}
+  .note{
+    font-size:12px; color:var(--muted); margin-top:16px; line-height:1.6;
+    padding:12px 14px; background:var(--grid-soft); border-radius:8px; border-left:3px solid var(--blue);
+  }
+  .foot{text-align:center; font-size:11.5px; color:var(--muted); margin-top:28px;}
+
+  #resultsPanel{ animation:riseIn .4s ease both; }
+  @keyframes riseIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div>
+        <div class="eyebrow"><span class="dot"></span>EPCC &middot; Automation &middot; Fire &middot; HVAC &middot; Instrumentation</div>
+        <h1>BOM Price Matcher</h1>
+        <p>Auto-fill new enquiry pricing by matching part numbers &mdash; or descriptions, when part numbers don't line up &mdash; against your historical BOM library.</p>
+      </div>
+      <div class="hero-icon" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#BFE0FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 3h6l1 3h3v3l-3 1v6l3 1v3h-3l-1 3H9l-1-3H5v-3l3-1V10L5 9V6h3l1-3z"/>
+          <circle cx="12" cy="12" r="2.4"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stepper">
+      <div class="step"><div class="num">1</div><div class="lab">Load data</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="num">2</div><div class="lab">Review &amp; download</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Step 1 &mdash; Load data</h2>
+    <p class="sub">Upload your historical BOM files and the new enquiry sheet, or load sample data to see how it works.</p>
+    <div class="row2">
+      <div class="drop" id="dropBom">
+        <input type="file" id="bomInput" multiple accept=".xlsx,.xls,.csv">
+        <div class="icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h6l2 2h8v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
+          </svg>
+        </div>
+        <div class="lbl">Historical BOMs</div>
+        <div class="hint">Click or drag files here (multiple) &mdash; .xlsx / .csv</div>
+        <div class="filelist" id="bomList"></div>
+      </div>
+      <div class="drop" id="dropEnq">
+        <input type="file" id="enqInput" accept=".xlsx,.xls,.csv">
+        <div class="icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M13 3v5h5"/>
+          </svg>
+        </div>
+        <div class="lbl">New enquiry sheet</div>
+        <div class="hint">Click or drag a file here (single) &mdash; .xlsx / .csv</div>
+        <div class="filelist" id="enqList"></div>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button id="sampleBtn" class="secondary">Load sample data</button>
+      <button id="processBtn" disabled>Match and fill prices</button>
+    </div>
+    <p class="note">Works with any column layout or header wording &mdash; headers can be anywhere in the first ~40 rows, in any case, and named things like "Part No", "Manufacturer Part No.", "Material Code", "Item Code", etc. Reads every sub-sheet inside each uploaded file (skips sheets with no usable data, e.g. notes/revision tabs). Matching order: 1) exact part number, 2) near-match part number (typos/formatting), 3) description similarity &mdash; shown as "Partially matching &mdash; NN%" when it's not a full match. Placeholder values like "NA", "TBD", or "-" are ignored as part numbers so description matching takes over instead. Where a part number is genuinely duplicated across BOMs, the description is used to pick the right one. Where nothing disambiguates, the most recently uploaded BOM wins. The download writes only the price values directly into your original enquiry file's underlying XML &mdash; row colours, logos, and other formatting are left completely untouched.</p>
+  </div>
+
+  <div id="resultsPanel" style="display:none;">
+    <div class="stats" id="stats"></div>
+    <div class="panel">
+      <h2>Step 2 &mdash; Review results</h2>
+      <p class="sub">Review matches below, then download the filled enquiry sheet.</p>
+      <div class="tablewrap"><table id="resultsTable"><thead></thead><tbody></tbody></table></div>
+      <div class="btnrow">
+        <button id="downloadBtn">Download your enquiry sheet, prices filled in</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Runs entirely in your browser &mdash; no files are ever uploaded to a server.</div>
+
+</div>
+
+<script>
+let bomFiles = [];
+let enqFile = null;
+let bomRecords = [];
+let enqRows = [];
+let resultRows = [];
+
+const bomInput = document.getElementById('bomInput');
+const enqInput = document.getElementById('enqInput');
+document.getElementById('dropBom').addEventListener('click', ()=>bomInput.click());
+document.getElementById('dropEnq').addEventListener('click', ()=>enqInput.click());
+
+bomInput.addEventListener('change', e=>{
+  bomFiles = Array.from(e.target.files);
+  document.getElementById('bomList').innerHTML = bomFiles.map(f=>`<div>${f.name}</div>`).join('');
+  updateProcessBtn();
+});
+enqInput.addEventListener('change', e=>{
+  enqFile = e.target.files[0] || null;
+  document.getElementById('enqList').innerHTML = enqFile ? `<div>${enqFile.name}</div>` : '';
+  updateProcessBtn();
+});
+
+function setupDragDrop(zoneId, onFiles){
+  const zone = document.getElementById(zoneId);
+  ['dragenter','dragover'].forEach(evt=>{
+    zone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); zone.classList.add('dragging'); });
+  });
+  ['dragleave','dragend'].forEach(evt=>{
+    zone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); zone.classList.remove('dragging'); });
+  });
+  zone.addEventListener('drop', e=>{
+    e.preventDefault(); e.stopPropagation();
+    zone.classList.remove('dragging');
+    const files = Array.from(e.dataTransfer.files || []).filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name));
+    if(files.length) onFiles(files);
+  });
+}
+setupDragDrop('dropBom', files=>{
+  bomFiles = files;
+  document.getElementById('bomList').innerHTML = bomFiles.map(f=>`<div>${f.name}</div>`).join('');
+  updateProcessBtn();
+});
+setupDragDrop('dropEnq', files=>{
+  enqFile = files[0];
+  document.getElementById('enqList').innerHTML = enqFile ? `<div>${enqFile.name}</div>` : '';
+  updateProcessBtn();
+});
+
+function updateProcessBtn(){
+  document.getElementById('processBtn').disabled = !(bomFiles.length && enqFile);
+}
+
+const PN_PLACEHOLDERS = new Set(['NA','N A','NIL','NONE','TBD','TBC','XXX','XX','NOTAPPLICABLE','NULL','UNKNOWN','ASPERDRG','ASPERDRAWING','STANDARD','GENERIC','LOCAL','LOCALPURCHASE','SPARE','MISC','MISCELLANEOUS']);
+function normPN(s){
+  const n = String(s||'').toUpperCase().replace(/[\s\-_\/\.]/g,'');
+  if(!n || PN_PLACEHOLDERS.has(n)) return '';
+  return n;
+}
+function levenshtein(a,b){
+  const m=a.length, n=b.length;
+  if(!m) return n; if(!n) return m;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+const STOP = new Set(['the','and','for','with','of','a','an','to','in','on','x','mm','type']);
+function tokens(s){
+  return String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w && !STOP.has(w));
+}
+function jaccard(aTokens,bTokens){
+  const A=new Set(aTokens), B=new Set(bTokens);
+  if(!A.size || !B.size) return 0;
+  let inter=0; A.forEach(t=>{ if(B.has(t)) inter++; });
+  const union = new Set([...A,...B]).size;
+  return inter/union;
+}
+
+const PN_CANDIDATES = [
+  'manufacturer part no','manufacturer part number','mfr part no','mfg part no',
+  'part no','part number','part#','p/n','pn.','catalog no','catalog number','cat no',
+  'item code','item no','material code','material no','component code','sap code','sku'
+];
+const DESC_CANDIDATES = [
+  'material description','item description','component description','part description',
+  'description','desc','specification','spec'
+];
+const PRICE_CANDIDATES = [
+  'unit price','unit rate','list price','unit cost','net price',
+  'price','rate','cost'
+];
+
+function findCol(headerRow, candidates){
+  let bestIdx=-1, bestLen=-1;
+  for(let i=0;i<headerRow.length;i++){
+    const h = String(headerRow[i]||'').toLowerCase().trim();
+    if(!h) continue;
+    for(const c of candidates){
+      if(h.includes(c) && c.length>bestLen){ bestLen=c.length; bestIdx=i; }
+    }
+  }
+  return bestIdx;
+}
+
+function locateHeader(rows, maxScan){
+  const scanLimit = Math.min(maxScan || 40, rows.length);
+  for(let r=0;r<scanLimit;r++){
+    const row = rows[r];
+    if(!row || !row.length) continue;
+    const pnCol = findCol(row, PN_CANDIDATES);
+    const descCol = findCol(row, DESC_CANDIDATES);
+    if(pnCol>=0 || descCol>=0){
+      const priceCol = findCol(row, PRICE_CANDIDATES);
+      return {headerRowIdx:r, header:row, pnCol, descCol, priceCol};
+    }
+  }
+  return null;
+}
+
+function parseSheet(workbook){
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+  return rows;
+}
+
+function parseAllSheets(workbook){
+  return workbook.SheetNames.map(name=>{
+    const sheet = workbook.Sheets[name];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+    return {name, rows};
+  }).filter(s=>s.rows.length>0);
+}
+
+function extractRecords(rows, sourceLabel, order){
+  const loc = locateHeader(rows);
+  if(!loc) return [];
+  const {headerRowIdx, pnCol, descCol, priceCol} = loc;
+  if(pnCol===-1 && descCol===-1) return [];
+  const recs=[];
+  for(let r=headerRowIdx+1;r<rows.length;r++){
+    const row = rows[r];
+    const pn = pnCol>=0 ? row[pnCol] : '';
+    const desc = descCol>=0 ? row[descCol] : '';
+    if(!pn && !desc) continue;
+    const price = priceCol>=0 ? row[priceCol] : '';
+    recs.push({pnRaw:pn, pnNorm:normPN(pn), desc:desc, descTokens:tokens(desc), price:price, source:sourceLabel, order:order});
+  }
+  return recs;
+}
+
+function extractEnquiry(rows){
+  const loc = locateHeader(rows);
+  if(!loc) return {header:[], pnCol:-1, descCol:-1, priceCol:-1, headerRowIdx:-1, priceColIsNew:false, dataRows:[]};
+  const {headerRowIdx, pnCol, descCol} = loc;
+  let priceCol = loc.priceCol;
+  let priceColIsNew = false;
+  const header = rows[headerRowIdx].slice();
+  if(priceCol===-1){ priceCol = header.length; header.push('Unit Price'); priceColIsNew=true; }
+  const dataRows = [];
+  for(let r=headerRowIdx+1;r<rows.length;r++){ dataRows.push({rowIndex:r, row:rows[r]}); }
+  return {header, pnCol, descCol, priceCol, headerRowIdx, priceColIsNew, dataRows};
+}
+
+async function readFile(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array', cellStyles:true, cellNF:true, cellDates:true});
+  return wb;
+}
+
+document.getElementById('sampleBtn').addEventListener('click', ()=>{
+  loadSampleAndProcess();
+});
+
+function sampleWorkbookFromAOA(aoa){
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  return wb;
+}
+
+function sampleWorkbookMultiSheet(sheetsObj){
+  const wb = XLSX.utils.book_new();
+  Object.keys(sheetsObj).forEach(name=>{
+    const ws = XLSX.utils.aoa_to_sheet(sheetsObj[name]);
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  });
+  return wb;
+}
+
+function buildSampleData(){
+  const bom1 = [
+    ['Part No','Description','Unit Price'],
+    ['FD-2510-A','Fire damper 250x100mm galvanised',4200],
+    ['SM-440-CX','Smoke detector, photoelectric ceiling mount',1150],
+    ['HV-DUCT-300','HVAC duct 300mm dia GI 24G',890],
+    ['INST-PT-100','Pressure transmitter 0-10 bar 4-20mA',18500],
+    ['AUT-PLC-CPU1','PLC CPU module, 32 I/O',62000],
+  ];
+  const bom2 = [
+    ['Part No','Description','Unit Price'],
+    ['FD-2510-A','Fire damper 250x100mm galvanised',4350],
+    ['FA-PNL-08','Fire alarm panel 8 zone conventional',27500],
+    ['HVDUCT300','HVAC duct 300mm dia GI 24 gauge',920],
+    ['INST-TT-200','Temperature transmitter RTD PT100',9800],
+    ['CBL-INST-2C','Instrumentation cable 2 core screened, per mtr',85],
+  ];
+  const bom3 = {
+    'Instrumentation': [
+      ['part no','description','PRICE'],
+      ['SM440CX','Smoke detector photoelectric, ceiling type',1210],
+      ['AUT-PLC-CPU1','PLC CPU module 32 input output points',63500],
+      ['INST-PT-100','Pressure transmitter 0-10bar 4-20mA output',18900],
+    ],
+    'Valves and Mech': [
+      ['PART NUMBER','DESCRIPTION','RATE'],
+      ['VLV-BFLY-150','Butterfly valve 150mm wafer type',7200],
+    ],
+    'Notes': [
+      ['Revision history'],
+      ['Rev A - issued for tender'],
+    ],
+  };
+  const enquiry = [
+    ['Part Number','Description','Unit Price'],
+    ['FD-2510-A','Fire damper 250x100mm galvanised',''],
+    ['SM-440-CX','Smoke detector photoelectric',''],
+    ['HV-DUCT-300','HVAC duct 300mm dia',''],
+    ['INST-PT-100','Pressure transmitter 0-10 bar',''],
+    ['AUT-PLC-CPU-1','PLC CPU module 32 I/O',''],
+    ['FA-PNL-08','Fire alarm panel 8 zone',''],
+    ['CABLE-2C-INST','Instrumentation cable 2 core',''],
+    ['VLV-BFLY-15O','Butterfly valve 150mm',''],
+    ['INST-TT-200','Temperature transmitter RTD',''],
+    ['XYZ-9999','Unknown special gasket kit',''],
+  ];
+  return {bom1,bom2,bom3,enquiry};
+}
+
+async function loadSampleAndProcess(){
+  const s = buildSampleData();
+  const bomWbs = [
+    {wb: sampleWorkbookFromAOA(s.bom1), name:'BOM_Project_A_2025.xlsx'},
+    {wb: sampleWorkbookFromAOA(s.bom2), name:'BOM_Project_B_2026-03.xlsx'},
+    {wb: sampleWorkbookMultiSheet(s.bom3), name:'BOM_Project_C_2026-06.xlsx'},
+  ];
+  bomRecords = [];
+  bomWbs.forEach((b,idx)=>{
+    parseAllSheets(b.wb).forEach(s2=>{
+      bomRecords = bomRecords.concat(extractRecords(s2.rows, b.name+' \u203a '+s2.name, idx));
+    });
+  });
+  const enqWb = sampleWorkbookFromAOA(s.enquiry);
+  const parsedEnq = extractEnquiryFromWorkbook(enqWb);
+  window.__enqOriginalBytes = XLSX.write(enqWb, {type:'array', bookType:'xlsx'});
+  window.__enqFileName = 'sample_enquiry.xlsx';
+  runMatching(parsedEnq);
+}
+
+document.getElementById('processBtn').addEventListener('click', async ()=>{
+  bomRecords = [];
+  for(let i=0;i<bomFiles.length;i++){
+    const wb = await readFile(bomFiles[i]);
+    parseAllSheets(wb).forEach(s2=>{
+      bomRecords = bomRecords.concat(extractRecords(s2.rows, bomFiles[i].name+' \u203a '+s2.name, i));
+    });
+  }
+  const enqBuf = await enqFile.arrayBuffer();
+  const enqWb = XLSX.read(enqBuf, {type:'array', cellStyles:true, cellNF:true, cellDates:true});
+  const parsedEnq = extractEnquiryFromWorkbook(enqWb);
+  window.__enqOriginalBytes = enqBuf;
+  window.__enqFileName = enqFile.name;
+  runMatching(parsedEnq);
+});
+
+function extractEnquiryFromWorkbook(wb){
+  const sheets = parseAllSheets(wb);
+  for(const s2 of sheets){
+    const loc = locateHeader(s2.rows);
+    if(loc && (loc.pnCol>=0 || loc.descCol>=0)){
+      const parsed = extractEnquiry(s2.rows);
+      parsed.sheetName = s2.name;
+      return parsed;
+    }
+  }
+  if(sheets.length){
+    const parsed = extractEnquiry(sheets[0].rows);
+    parsed.sheetName = sheets[0].name;
+    return parsed;
+  }
+  return {header:[], pnCol:-1, descCol:-1, priceCol:-1, headerRowIdx:-1, priceColIsNew:false, dataRows:[], sheetName:''};
+}
+
+function pickBestCandidate(candidates, enqDescVal){
+  if(candidates.length===1) return {rec:candidates[0], viaDesc:false, descScorePct:null};
+  if(enqDescVal){
+    const eTokens = tokens(enqDescVal);
+    let bestRec=null, bestScore=-1;
+    for(const r of candidates){
+      const sc = jaccard(eTokens, r.descTokens);
+      if(sc>bestScore){ bestScore=sc; bestRec=r; }
+    }
+    // Only trust description if it actually discriminates between candidates
+    // (i.e. not all candidates score identically, and it clears a minimal bar).
+    const allSame = candidates.every(r=>Math.abs(jaccard(eTokens, r.descTokens)-bestScore)<1e-9);
+    if(bestScore>0.15 && !allSame){
+      return {rec:bestRec, viaDesc:true, descScorePct:Math.round(bestScore*100)};
+    }
+  }
+  const rec = candidates.reduce((a,b)=> b.order>a.order ? b : a);
+  return {rec, viaDesc:false, descScorePct:null};
+}
+
+function runMatching(parsedEnq){
+  const {header, pnCol, descCol, priceCol, headerRowIdx, priceColIsNew, sheetName, dataRows} = parsedEnq;
+  resultRows = [];
+  for(const {rowIndex, row} of dataRows){
+    const pnVal = pnCol>=0 ? row[pnCol] : '';
+    const descVal = descCol>=0 ? row[descCol] : '';
+    if(!pnVal && !descVal) continue;
+    const pnNorm = normPN(pnVal);
+    let best=null, type='none', descScorePct=null, disambiguatedByDesc=false;
+
+    if(pnNorm){
+      const exact = bomRecords.filter(r=>r.pnNorm && r.pnNorm===pnNorm);
+      if(exact.length){
+        const picked = pickBestCandidate(exact, descVal);
+        best = picked.rec; type='exact';
+        if(picked.viaDesc){ disambiguatedByDesc=true; descScorePct=picked.descScorePct; }
+      } else {
+        let fuzzyDist=Infinity;
+        for(const r of bomRecords){
+          if(!r.pnNorm) continue;
+          const maxLen = Math.max(r.pnNorm.length, pnNorm.length);
+          const thresh = Math.max(1, Math.floor(maxLen*0.2));
+          const d = levenshtein(r.pnNorm, pnNorm);
+          if(d<=thresh && d<fuzzyDist){ fuzzyDist=d; }
+        }
+        if(fuzzyDist!==Infinity){
+          const candidates = bomRecords.filter(r=>{
+            if(!r.pnNorm) return false;
+            const maxLen = Math.max(r.pnNorm.length, pnNorm.length);
+            const thresh = Math.max(1, Math.floor(maxLen*0.2));
+            return levenshtein(r.pnNorm,pnNorm)===fuzzyDist && levenshtein(r.pnNorm,pnNorm)<=thresh;
+          });
+          const picked = pickBestCandidate(candidates, descVal);
+          best = picked.rec; type='fuzzy';
+          if(picked.viaDesc){ disambiguatedByDesc=true; descScorePct=picked.descScorePct; }
+        }
+      }
+    }
+
+    if(!best && descVal){
+      const eTokens = tokens(descVal);
+      let descBest=null, descScore=0;
+      for(const r of bomRecords){
+        const sc = jaccard(eTokens, r.descTokens);
+        if(sc>descScore){ descScore=sc; descBest=r; }
+      }
+      if(descBest && descScore>=0.3){
+        best=descBest; type='desc'; descScorePct=Math.round(descScore*100);
+      }
+    }
+
+    resultRows.push({
+      rowIndex,
+      pn: pnVal, desc: descVal,
+      price: best ? best.price : '',
+      type: type,
+      descScorePct: descScorePct,
+      disambiguatedByDesc: disambiguatedByDesc,
+      matchedPn: best ? best.pnRaw : '',
+      matchedDesc: best ? best.desc : '',
+      source: best ? best.source : ''
+    });
+  }
+  renderResults(header, pnCol, priceCol, headerRowIdx, priceColIsNew, sheetName);
+}
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderResults(header, pnCol, priceCol, headerRowIdx, priceColIsNew, sheetName){
+  document.getElementById('resultsPanel').style.display='block';
+  const counts = {exact:0, fuzzy:0, desc:0, none:0};
+  resultRows.forEach(r=>counts[r.type]++);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="n">${resultRows.length}</div><div class="l">Total lines</div></div>
+    <div class="stat"><div class="n" style="color:var(--green)">${counts.exact}</div><div class="l">Exact match</div></div>
+    <div class="stat"><div class="n" style="color:var(--amber)">${counts.fuzzy}</div><div class="l">Near match (typo/format)</div></div>
+    <div class="stat"><div class="n" style="color:var(--skyblue)">${counts.desc}</div><div class="l">Partial (by description)</div></div>
+    <div class="stat"><div class="n" style="color:var(--red)">${counts.none}</div><div class="l">Not found</div></div>
+  `;
+  const thead = document.querySelector('#resultsTable thead');
+  const tbody = document.querySelector('#resultsTable tbody');
+  thead.innerHTML = `<tr><th>Part number</th><th>Description</th><th style="text-align:right;">Matched price</th><th>Match type</th><th>Matched against</th></tr>`;
+  tbody.innerHTML = resultRows.map(r=>{
+    const stampClass = r.type==='exact'?'exact':r.type==='fuzzy'?'fuzzy':r.type==='desc'?'desc':'none';
+    let stampText;
+    if(r.type==='exact') stampText = r.disambiguatedByDesc ? 'Exact (multiple \u2014 by desc '+r.descScorePct+'%)' : 'Exact';
+    else if(r.type==='fuzzy') stampText = r.disambiguatedByDesc ? 'Near match (multiple \u2014 by desc '+r.descScorePct+'%)' : 'Near match';
+    else if(r.type==='desc') stampText='Partially matching \u2014 '+r.descScorePct+'%';
+    else stampText='Not found';
+    const matchedAgainst = r.matchedPn
+      ? esc(r.matchedPn)+' \u2014 '+esc(r.source)
+      : (r.matchedDesc ? esc(r.matchedDesc)+' \u2014 '+esc(r.source) : '\u2014');
+    return `<tr>
+      <td class="pn">${esc(r.pn)}</td>
+      <td>${esc(r.desc)}</td>
+      <td class="price">${r.price!==''? (typeof r.price==='number'? r.price.toLocaleString() : esc(r.price)) : '\u2014'}</td>
+      <td><span class="stamp ${stampClass}">${stampText}</span></td>
+      <td class="src">${matchedAgainst}</td>
+    </tr>`;
+  }).join('');
+  window.__lastPriceCol = priceCol;
+  window.__lastHeaderRowIdx = headerRowIdx;
+  window.__lastPriceColIsNew = priceColIsNew;
+  window.__lastSheetName = sheetName;
+}
+
+function colIndexToLetter(idx){
+  let s='', n=idx+1;
+  while(n>0){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+function parseCellRef(ref){
+  const m = ref.match(/^([A-Z]+)(\d+)$/);
+  let col=0;
+  for(let i=0;i<m[1].length;i++){ col = col*26 + (m[1].charCodeAt(i)-64); }
+  return { col: col-1, row: parseInt(m[2],10) };
+}
+
+async function resolveSheetPath(zip, sheetName){
+  const wbXmlText = await zip.file('xl/workbook.xml').async('string');
+  const relsText = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  const parser = new DOMParser();
+  const wbDoc = parser.parseFromString(wbXmlText, 'application/xml');
+  const relsDoc = parser.parseFromString(relsText, 'application/xml');
+  const sheets = wbDoc.getElementsByTagName('sheet');
+  let rId=null;
+  for(let i=0;i<sheets.length;i++){
+    if(sheets[i].getAttribute('name')===sheetName){
+      rId = sheets[i].getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id') || sheets[i].getAttribute('r:id');
+      break;
+    }
+  }
+  if(!rId) return null;
+  const rels = relsDoc.getElementsByTagName('Relationship');
+  for(let i=0;i<rels.length;i++){
+    if(rels[i].getAttribute('Id')===rId){
+      const target = rels[i].getAttribute('Target');
+      return target.startsWith('/') ? target.slice(1) : 'xl/'+target.replace(/^\.?\//,'');
+    }
+  }
+  return null;
+}
+
+async function writeBackFormatted(){
+  if(!window.__enqOriginalBytes){
+    alert('Original file data is not available. Please re-run the match first.');
+    return;
+  }
+  const zip = await JSZip.loadAsync(window.__enqOriginalBytes);
+  const sheetName = window.__lastSheetName;
+  const sheetPath = await resolveSheetPath(zip, sheetName);
+  if(!sheetPath || !zip.file(sheetPath)){
+    alert('Could not locate the worksheet inside the Excel file to write into.');
+    return;
+  }
+  const xmlText = await zip.file(sheetPath).async('string');
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+  const ns = xmlDoc.documentElement.namespaceURI;
+  const sheetDataEl = xmlDoc.getElementsByTagName('sheetData')[0];
+
+  function getOrCreateRow(rowNumber){
+    const rows = sheetDataEl.getElementsByTagName('row');
+    for(let i=0;i<rows.length;i++){
+      if(parseInt(rows[i].getAttribute('r'),10)===rowNumber) return rows[i];
+    }
+    const rowEl = xmlDoc.createElementNS(ns,'row');
+    rowEl.setAttribute('r', String(rowNumber));
+    let inserted=false;
+    for(let i=0;i<rows.length;i++){
+      if(parseInt(rows[i].getAttribute('r'),10)>rowNumber){ sheetDataEl.insertBefore(rowEl, rows[i]); inserted=true; break; }
+    }
+    if(!inserted) sheetDataEl.appendChild(rowEl);
+    return rowEl;
+  }
+
+  function setCell(rowNumber, colIndex, value, isText){
+    const rowEl = getOrCreateRow(rowNumber);
+    const cellRef = colIndexToLetter(colIndex)+rowNumber;
+    const cells = rowEl.getElementsByTagName('c');
+    let cellEl=null, insertBeforeEl=null;
+    for(let i=0;i<cells.length;i++){
+      const ci = parseCellRef(cells[i].getAttribute('r')).col;
+      if(ci===colIndex){ cellEl=cells[i]; break; }
+      if(ci>colIndex){ insertBeforeEl=cells[i]; break; }
+    }
+    if(!cellEl){
+      cellEl = xmlDoc.createElementNS(ns,'c');
+      cellEl.setAttribute('r', cellRef);
+      if(insertBeforeEl) rowEl.insertBefore(cellEl, insertBeforeEl); else rowEl.appendChild(cellEl);
+    } else {
+      while(cellEl.firstChild) cellEl.removeChild(cellEl.firstChild);
+    }
+    if(isText){
+      cellEl.setAttribute('t','inlineStr');
+      const isEl = xmlDoc.createElementNS(ns,'is');
+      const tEl = xmlDoc.createElementNS(ns,'t');
+      tEl.textContent = String(value);
+      isEl.appendChild(tEl);
+      cellEl.appendChild(isEl);
+    } else {
+      cellEl.removeAttribute('t');
+      const vEl = xmlDoc.createElementNS(ns,'v');
+      vEl.textContent = String(value);
+      cellEl.appendChild(vEl);
+    }
+  }
+
+  const priceCol = window.__lastPriceCol;
+  const headerRowIdx = window.__lastHeaderRowIdx;
+  if(window.__lastPriceColIsNew){
+    setCell(headerRowIdx+1, priceCol, 'Unit Price', true);
+  }
+  let maxColUsed = priceCol, maxRowUsed = headerRowIdx+1;
+  resultRows.forEach(r=>{
+    if(r.price===''||r.price===null||r.price===undefined) return;
+    const rowNumber = r.rowIndex+1;
+    if(typeof r.price==='number'){
+      setCell(rowNumber, priceCol, r.price, false);
+    } else {
+      const num = parseFloat(r.price);
+      if(!isNaN(num) && String(r.price).trim()!=='' && String(num)===String(r.price).trim()){
+        setCell(rowNumber, priceCol, num, false);
+      } else {
+        setCell(rowNumber, priceCol, String(r.price), true);
+      }
+    }
+    if(rowNumber>maxRowUsed) maxRowUsed=rowNumber;
+  });
+
+  const dimEl = xmlDoc.getElementsByTagName('dimension')[0];
+  if(dimEl){
+    const refAttr = dimEl.getAttribute('ref');
+    if(refAttr && refAttr.includes(':')){
+      const [startRef,endRef] = refAttr.split(':');
+      const end = parseCellRef(endRef);
+      const newEndCol = Math.max(end.col, maxColUsed);
+      const newEndRow = Math.max(end.row, maxRowUsed);
+      dimEl.setAttribute('ref', startRef+':'+colIndexToLetter(newEndCol)+newEndRow);
+    }
+  }
+
+  const serializer = new XMLSerializer();
+  zip.file(sheetPath, serializer.serializeToString(xmlDoc));
+
+  const outBlob = await zip.generateAsync({type:'blob'});
+  const baseName = (window.__enqFileName || 'enquiry.xlsx').replace(/\.xlsx?$/i,'');
+  const url = URL.createObjectURL(outBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = baseName+'_priced.xlsx';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  writeBackFormatted().catch(err=>{
+    console.error(err);
+    alert('Something went wrong writing the file: '+err.message);
+  });
+});
+</script>
+</body>
+</html>
