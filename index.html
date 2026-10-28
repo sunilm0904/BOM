@@ -189,6 +189,21 @@
 
   #resultsPanel{ animation:riseIn .4s ease both; }
   @keyframes riseIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+  .status{font-size:12.5px; color:var(--muted); margin-top:10px; min-height:18px;}
+  .msg{margin-top:12px; padding:11px 14px; border-radius:8px; font-size:13px; line-height:1.5; border:1px solid;}
+  .msg.err{color:var(--red); border-color:var(--red); background:var(--red-bg);}
+  .stat.clickable{cursor:pointer; transition:box-shadow .15s;}
+  .stat.clickable:hover{box-shadow:0 2px 10px rgba(0,0,0,.12);}
+  .stat.active{outline:2px solid var(--navy); outline-offset:-2px;}
+  .toolbar{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:14px;}
+  .toolbar input[type=search]{flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--grid); border-radius:8px; font:inherit; font-size:13px;}
+  .opts{display:flex; flex-direction:column; gap:8px; margin-top:16px; font-size:13px;}
+  .opts label{display:flex; gap:8px; align-items:flex-start; cursor:pointer;}
+  details.diag{margin-top:6px; border:1px solid var(--grid); border-radius:10px; padding:2px 12px 10px;}
+  details.diag summary{cursor:pointer; font-weight:600; font-size:13px; padding:9px 0;}
+  details.diag table{margin-top:4px; font-size:12px;}
+  tr.dg-ok td:last-child{color:var(--green);} tr.dg-warn td:last-child{color:var(--amber); font-weight:600;}
+  tr.dg-err td:last-child{color:var(--red); font-weight:600;} tr.dg-muted td{color:var(--muted);}
 </style>
 </head>
 <body>
@@ -220,25 +235,25 @@
     <p class="sub">Upload your historical BOM files and the new enquiry sheet, or load sample data to see how it works.</p>
     <div class="row2">
       <div class="drop" id="dropBom">
-        <input type="file" id="bomInput" multiple accept=".xlsx,.xls,.csv">
+        <input type="file" id="bomInput" multiple accept=".xlsx,.xlsm,.xlsb,.xls,.csv">
         <div class="icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 4h6l2 2h8v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
           </svg>
         </div>
         <div class="lbl">Historical BOMs</div>
-        <div class="hint">Click or drag files here (multiple) &mdash; .xlsx / .csv</div>
+        <div class="hint">Click or drag files here (multiple) &mdash; .xlsx / .xls / .csv</div>
         <div class="filelist" id="bomList"></div>
       </div>
       <div class="drop" id="dropEnq">
-        <input type="file" id="enqInput" accept=".xlsx,.xls,.csv">
+        <input type="file" id="enqInput" accept=".xlsx,.xlsm,.xlsb,.xls,.csv">
         <div class="icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M13 3v5h5"/>
           </svg>
         </div>
         <div class="lbl">New enquiry sheet</div>
-        <div class="hint">Click or drag a file here (single) &mdash; .xlsx / .csv</div>
+        <div class="hint">Click or drag a file here (single) &mdash; .xlsx / .xls / .csv</div>
         <div class="filelist" id="enqList"></div>
       </div>
     </div>
@@ -246,15 +261,30 @@
       <button id="sampleBtn" class="secondary">Load sample data</button>
       <button id="processBtn" disabled>Match and fill prices</button>
     </div>
-    <p class="note">Works with any column layout or header wording &mdash; headers can be anywhere in the first ~40 rows, in any case, and named things like "Part No", "Manufacturer Part No.", "Material Code", "Item Code", etc. Reads every sub-sheet inside each uploaded file (skips sheets with no usable data, e.g. notes/revision tabs). Matching order: 1) exact part number, 2) near-match part number (typos/formatting), 3) description similarity &mdash; shown as "Partially matching &mdash; NN%" when it's not a full match. Placeholder values like "NA", "TBD", or "-" are ignored as part numbers so description matching takes over instead. Where a part number is genuinely duplicated across BOMs, the description is used to pick the right one. Where nothing disambiguates, the most recently uploaded BOM wins. The download writes only the price values directly into your original enquiry file's underlying XML &mdash; row colours, logos, and other formatting are left completely untouched.</p>
+    <div id="statusMsg" class="status" role="status" aria-live="polite"></div>
+    <div id="msgBox" class="msg" style="display:none;" role="alert"></div>
+    <p class="note"><b>How it reads your files:</b> headers can sit anywhere in the first ~40 rows and may be written in any style (&ldquo;Unit Price&rdquo;, &ldquo;Unit Rate&rdquo;, &ldquo;Rate&rdquo;, &ldquo;Supply Rate&rdquo;, &ldquo;Net Price&rdquo;, &ldquo;Part_No.&rdquo;, &ldquo;Material Code&rdquo;&hellip;), and every sheet of every file is checked &mdash; each historical BOM may use different column names. Total / Qty / Amount columns are never mistaken for the unit price. <b>Matching order:</b> 1) exact part number ignoring spaces, dashes and symbols, 2) look-alike characters (O/0, I/1), 3) prefix/suffix differences, 4) typos, 5) description. <b>If an item is in several BOMs, the highest price is filled.</b> Prices already in the enquiry are kept unless you tick &ldquo;overwrite&rdquo;. The download edits only the price cells of your original .xlsx, so formatting, logos and formulas stay untouched. After matching, open &ldquo;Data check&rdquo; to see which column was used from each file.</p>
   </div>
 
   <div id="resultsPanel" style="display:none;">
     <div class="stats" id="stats"></div>
     <div class="panel">
       <h2>Step 2 &mdash; Review results</h2>
-      <p class="sub">Review matches below, then download the filled enquiry sheet.</p>
+      <p class="sub">Review matches below, then download the filled enquiry sheet. Click a summary card to filter the table.</p>
+      <p class="note" id="loadInfo" style="margin-top:0;margin-bottom:14px;"></p>
+      <details id="diagBox" class="diag">
+        <summary id="diagSummary">Data check</summary>
+        <div class="tablewrap"><table id="diagTable"></table></div>
+      </details>
+      <div class="toolbar">
+        <input type="search" id="searchBox" placeholder="Search part no, description or source file&hellip;" aria-label="Search results">
+        <span id="filterLabel" class="src"></span>
+      </div>
       <div class="tablewrap"><table id="resultsTable"><thead></thead><tbody></tbody></table></div>
+      <div class="opts">
+        <label><input type="checkbox" id="optStatus" checked> Add a &ldquo;Price Match Status&rdquo; column to the downloaded sheet (shows which lines need checking)</label>
+        <label><input type="checkbox" id="optOverwrite"> Overwrite prices that are already filled in the enquiry sheet</label>
+      </div>
       <div class="btnrow">
         <button id="downloadBtn">Download your enquiry sheet, prices filled in</button>
       </div>
@@ -266,17 +296,33 @@
 </div>
 
 <script>
+// ============================================================
+//  BOM Price Matcher — application logic
+// ============================================================
+const $ = id => document.getElementById(id);
+const tick = () => new Promise(r => setTimeout(r, 0));
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function setStatus(t){ $('statusMsg').textContent = t || ''; }
+function showMsg(kind, html){
+  const b = $('msgBox');
+  if(!html){ b.style.display='none'; b.innerHTML=''; return; }
+  b.className = 'msg ' + kind; b.innerHTML = html; b.style.display = 'block';
+}
 
 let bomFiles = [];
 let enqFile = null;
 let bomRecords = [];
-let enqRows = [];
+let diagnostics = [];
+let enqSheets = [];
 let resultRows = [];
+let filterType = 'all';
+let searchQ = '';
 
-const bomInput = document.getElementById('bomInput');
-const enqInput = document.getElementById('enqInput');
-document.getElementById('dropBom').addEventListener('click', ()=>bomInput.click());
-document.getElementById('dropEnq').addEventListener('click', ()=>enqInput.click());
+// ---------- File pickers / drag & drop ----------
+const bomInput = $('bomInput');
+const enqInput = $('enqInput');
+$('dropBom').addEventListener('click', ()=>bomInput.click());
+$('dropEnq').addEventListener('click', ()=>enqInput.click());
 
 function fileKey(f){ return f.name+'::'+f.size; }
 function addBomFiles(newFiles){
@@ -289,42 +335,31 @@ function addBomFiles(newFiles){
   updateProcessBtn();
 }
 function renderBomList(){
-  const listEl = document.getElementById('bomList');
+  const listEl = $('bomList');
   if(!bomFiles.length){ listEl.innerHTML=''; return; }
   listEl.innerHTML = bomFiles.map((f,i)=>`<div>${esc(f.name)} <span class="rm" data-i="${i}" title="Remove">&times;</span></div>`).join('')
     + `<div class="clearall" id="clearBomBtn">Clear all</div>`;
   listEl.querySelectorAll('.rm').forEach(el=>{
     el.addEventListener('click', ev=>{
       ev.stopPropagation();
-      const i = parseInt(el.getAttribute('data-i'),10);
-      bomFiles.splice(i,1);
-      renderBomList();
-      updateProcessBtn();
+      bomFiles.splice(parseInt(el.getAttribute('data-i'),10),1);
+      renderBomList(); updateProcessBtn();
     });
   });
-  const clearBtn = document.getElementById('clearBomBtn');
+  const clearBtn = $('clearBomBtn');
   if(clearBtn){
-    clearBtn.addEventListener('click', ev=>{
-      ev.stopPropagation();
-      bomFiles = [];
-      renderBomList();
-      updateProcessBtn();
-    });
+    clearBtn.addEventListener('click', ev=>{ ev.stopPropagation(); bomFiles=[]; renderBomList(); updateProcessBtn(); });
   }
 }
-
-bomInput.addEventListener('change', e=>{
-  addBomFiles(Array.from(e.target.files));
-  bomInput.value = '';
-});
+bomInput.addEventListener('change', e=>{ addBomFiles(Array.from(e.target.files)); bomInput.value=''; });
 enqInput.addEventListener('change', e=>{
   enqFile = e.target.files[0] || null;
-  document.getElementById('enqList').innerHTML = enqFile ? `<div>${esc(enqFile.name)}</div>` : '';
+  $('enqList').innerHTML = enqFile ? `<div>${esc(enqFile.name)}</div>` : '';
   updateProcessBtn();
 });
-
+const FILE_RE = /\.(xlsx|xlsm|xlsb|xls|csv)$/i;
 function setupDragDrop(zoneId, onFiles){
-  const zone = document.getElementById(zoneId);
+  const zone = $(zoneId);
   ['dragenter','dragover'].forEach(evt=>{
     zone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); zone.classList.add('dragging'); });
   });
@@ -334,165 +369,511 @@ function setupDragDrop(zoneId, onFiles){
   zone.addEventListener('drop', e=>{
     e.preventDefault(); e.stopPropagation();
     zone.classList.remove('dragging');
-    const files = Array.from(e.dataTransfer.files || []).filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name));
+    const files = Array.from(e.dataTransfer.files || []).filter(f=>FILE_RE.test(f.name));
     if(files.length) onFiles(files);
   });
 }
-setupDragDrop('dropBom', files=>{
-  addBomFiles(files);
-});
+setupDragDrop('dropBom', files=>addBomFiles(files));
 setupDragDrop('dropEnq', files=>{
   enqFile = files[0];
-  document.getElementById('enqList').innerHTML = enqFile ? `<div>${esc(enqFile.name)}</div>` : '';
+  $('enqList').innerHTML = enqFile ? `<div>${esc(enqFile.name)}</div>` : '';
   updateProcessBtn();
 });
+function updateProcessBtn(){ $('processBtn').disabled = !(bomFiles.length && enqFile); }
 
-function updateProcessBtn(){
-  document.getElementById('processBtn').disabled = !(bomFiles.length && enqFile);
+// ---------- Text helpers ----------
+function cleanStr(s){
+  return String(s==null?'':s).normalize('NFKC').replace(/[\u200B-\u200D\uFEFF\u00A0]/g,' ');
 }
-
 const PN_PLACEHOLDERS = new Set(['NA','N A','NIL','NONE','TBD','TBC','XXX','XX','NOTAPPLICABLE','NULL','UNKNOWN','ASPERDRG','ASPERDRAWING','STANDARD','GENERIC','LOCAL','LOCALPURCHASE','SPARE','MISC','MISCELLANEOUS']);
+// Part-number key: uppercase, every space / dash / dot / slash / bracket / symbol removed
 function normPN(s){
-  const n = String(s||'').toUpperCase().replace(/[\s\-_\/\.]/g,'');
+  const n = cleanStr(s).toUpperCase().replace(/[^A-Z0-9]/g,'');
   if(!n || PN_PLACEHOLDERS.has(n)) return '';
   return n;
+}
+// Looser key: O<->0, I/L<->1 confusion and leading zeros ignored
+function looseKey(n){ return n.replace(/O/g,'0').replace(/[IL]/g,'1').replace(/^0+/,''); }
+
+// Price parser: numbers and text such as "Rs. 1,200.50", "₹4,200/-", "1.350,00"
+function parsePrice(v){
+  if(typeof v==='number') return (isFinite(v) && v>0) ? v : null;
+  let s = cleanStr(v).trim();
+  if(!s) return null;
+  s = s.replace(/[^\d.,]/g,'').replace(/^[.,]+|[.,]+$/g,'');
+  if(!s) return null;
+  const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+  if(lc>-1 && ld>-1){
+    s = lc>ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+  } else if(lc>-1){
+    const parts = s.split(',');
+    s = (parts.length>2 || parts[parts.length-1].length===3) ? s.replace(/,/g,'') : s.replace(',','.');
+  }
+  const n = parseFloat(s);
+  return (isFinite(n) && n>0) ? n : null;
 }
 function levenshtein(a,b){
   const m=a.length, n=b.length;
   if(!m) return n; if(!n) return m;
-  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
-  for(let i=0;i<=m;i++) dp[i][0]=i;
-  for(let j=0;j<=n;j++) dp[0][j]=j;
+  let prev = new Array(n+1), cur = new Array(n+1);
+  for(let j=0;j<=n;j++) prev[j]=j;
   for(let i=1;i<=m;i++){
+    cur[0]=i;
     for(let j=1;j<=n;j++){
-      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+      cur[j] = a[i-1]===b[j-1] ? prev[j-1] : 1+Math.min(prev[j-1],prev[j],cur[j-1]);
     }
+    [prev,cur]=[cur,prev];
   }
-  return dp[m][n];
+  return prev[n];
 }
-const STOP = new Set(['the','and','for','with','of','a','an','to','in','on','x','mm','type']);
+const STOP = new Set(['the','and','for','with','of','a','an','to','in','on','x','type','as','per','is','at']);
 function tokens(s){
-  return String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w && !STOP.has(w));
+  return cleanStr(s).toLowerCase()
+    .replace(/([a-z])(\d)/g,'$1 $2').replace(/(\d)([a-z])/g,'$1 $2')   // "10bar" == "10 bar"
+    .replace(/[^a-z0-9\s]/g,' ').split(/\s+/)
+    .map(w=> (w.length>3 && w.endsWith('s')) ? w.slice(0,-1) : w)     // simple plural fix
+    .filter(w=>w && !STOP.has(w));
 }
-function jaccard(aTokens,bTokens){
+function descKey(s){ return cleanStr(s).toLowerCase().replace(/[^a-z0-9]/g,''); }
+function descScore(aTokens,bTokens){
   const A=new Set(aTokens), B=new Set(bTokens);
   if(!A.size || !B.size) return 0;
   let inter=0; A.forEach(t=>{ if(B.has(t)) inter++; });
-  const union = new Set([...A,...B]).size;
-  return inter/union;
+  const jac = inter/new Set([...A,...B]).size;
+  const minSize = Math.min(A.size,B.size), r = inter/minSize;
+  const ov = (minSize>=3 && r>=0.8) ? r*0.85 : 0;
+  return Math.max(jac, ov);
 }
+function isTotalText(s){ return /^\s*(grand\s*|sub\s*)?total\b/i.test(String(s||'')); }
+
+// ---------- Column / header detection ----------
+// Header text is compared with case, spaces and punctuation removed:
+// "Unit Price", "UNIT_PRICE", "unit-price (INR)" all become "unitprice..."
+function hc(s){ return cleanStr(s).toLowerCase().replace(/[^a-z0-9#\/]/g,''); }
 
 const PN_CANDIDATES = [
-  'manufacturer part no','manufacturer part number','mfr part no','mfg part no',
-  'part no','part number','part#','p/n','pn.','catalog no','catalog number','cat no',
-  'item code','item no','material code','material no','component code','sap code','sku'
+  'manufacturer part no','manufacturer part number','manufacturers part no','mfr part no','mfg part no','mfr part','oem part','mfr model',
+  'part no','part number','part#','partcode','part code','catalog no','catalog number','catalogue no','catalogue number','cat no','cat#',
+  'item code','item no','item number','item#','material code','material no','material number','component code','component no',
+  'article no','article number','sap code','sap no','sku','model no','model number','product code','product no','stock code','make part'
 ];
+const PN_EXACT = new Set(['pn','p/n','mpn','pno','part','partno','code','itemcode']);
 const DESC_CANDIDATES = [
-  'material description','item description','component description','part description',
-  'description','desc','specification','spec'
+  'material description','item description','component description','part description','product description','description of item','description of goods','description of material',
+  'item name','material name','product name','description','desc','specification','spec','particulars'
 ];
-const PRICE_CANDIDATES = [
-  'unit price','unit rate','list price','unit cost','net price',
-  'price','rate','cost'
-];
+const DESC_EXACT = new Set(['item','items','material','product','details','goods']);
+// Order = priority when a sheet has more than one price-like column
+const PRICE_PRIORITY = [
+  'unitprice','unitrate','priceperunit','rateperunit','price/unit','rate/unit','unitcost','costperunit','unitamt',
+  'netunitprice','netprice','netrate','listprice','listrate','basicprice','basicrate','supplyrate','supplyprice','materialrate','materialprice','materialcost',
+  'quotedprice','quotedrate','quoteprice','offerprice','offerrate','sellingprice','purchaseprice','buyingprice','landedcost','priceeach','eachprice','price(each)',
+  'urate','uprice','u.rate','u/rate','price','rate','cost','mrp'
+].map(hc);
+const PRICE_EXCLUDE = ['total','amount','amt','qty','quantity','discount','tax','gst','vat','extended','currency','uom','centre','center','code','validity','freight','weight','lead'];
 
-function findCol(headerRow, candidates){
+function findCol(header, candidates, opts){
+  opts = opts || {};
+  const skip = opts.skip || [];
+  const cands = candidates.map(hc);
   let bestIdx=-1, bestLen=-1;
-  for(let i=0;i<headerRow.length;i++){
-    const h = String(headerRow[i]||'').toLowerCase().trim();
+  for(let i=0;i<header.length;i++){
+    if(skip.includes(i)) continue;
+    const h = hc(header[i]);
     if(!h) continue;
-    for(const c of candidates){
+    if(opts.exact && opts.exact.has(h) && h.length>bestLen){ bestLen=h.length; bestIdx=i; }
+    for(const c of cands){
       if(h.includes(c) && c.length>bestLen){ bestLen=c.length; bestIdx=i; }
     }
   }
   return bestIdx;
 }
-
-function locateHeader(rows, maxScan){
-  const scanLimit = Math.min(maxScan || 40, rows.length);
+function priceRank(h){
+  if(!h) return -1;
+  if(!h.includes('unit') && PRICE_EXCLUDE.some(x=>h.includes(x))) return -1;
+  for(let i=0;i<PRICE_PRIORITY.length;i++){
+    const c = PRICE_PRIORITY[i];
+    const hit = c.length<=5 ? (h===c || h.startsWith(c) || h.endsWith(c)) : h.includes(c);
+    if(hit) return i;
+  }
+  return -1;
+}
+function numericStats(rows, startRow, col, maxRows){
+  let n=0, num=0;
+  for(let r=startRow; r<rows.length && r<startRow+(maxRows||80); r++){
+    const v = rows[r] ? rows[r][col] : '';
+    if(v===''||v==null) continue;
+    n++; if(parsePrice(v)!=null) num++;
+  }
+  return {n, ratio: n? num/n : 0};
+}
+// For historical BOMs the price column must actually contain prices; for the enquiry it is expected to be blank.
+function pickPriceCol(rows, header, dataStart, isBom, skipCols){
+  const cands=[];
+  for(let c=0;c<header.length;c++){
+    if(skipCols.includes(c)) continue;
+    const rk = priceRank(hc(header[c]));
+    if(rk>=0) cands.push({c, rk});
+  }
+  cands.sort((a,b)=>a.rk-b.rk || a.c-b.c);
+  if(!cands.length) return -1;
+  if(!isBom) return cands[0].c;
+  for(const k of cands){
+    const st = numericStats(rows, dataStart, k.c);
+    if(st.n>0 && st.ratio>=0.3) return k.c;
+  }
+  return -1;
+}
+function headerVariants(rows, r){
+  const out = [{idx:r, header:rows[r]}];
+  const nxt = rows[r+1];
+  // two-line headers, e.g. "Unit" over "Rate": merge with the next row if it has text only
+  if(nxt && nxt.some(v=>String(v).trim()!=='') && !nxt.some(v=>typeof v==='number')){
+    const len = Math.max(rows[r].length, nxt.length), h=[];
+    for(let c=0;c<len;c++) h.push((String(rows[r][c]==null?'':rows[r][c])+' '+String(nxt[c]==null?'':nxt[c])).trim());
+    out.push({idx:r+1, header:h, merged:true});
+  }
+  return out;
+}
+function locateHeader(rows, opts){
+  opts = opts || {};
+  const scanLimit = Math.min(opts.maxScan || 40, rows.length);
+  let best=null, bestScore=0;
   for(let r=0;r<scanLimit;r++){
-    const row = rows[r];
-    if(!row || !row.length) continue;
-    const pnCol = findCol(row, PN_CANDIDATES);
-    const descCol = findCol(row, DESC_CANDIDATES);
-    if(pnCol>=0 || descCol>=0){
-      const priceCol = findCol(row, PRICE_CANDIDATES);
-      return {headerRowIdx:r, header:row, pnCol, descCol, priceCol};
+    if(!rows[r] || !rows[r].length) continue;
+    for(const v of headerVariants(rows, r)){
+      const h = v.header;
+      const pnCol = findCol(h, PN_CANDIDATES, {exact:PN_EXACT});
+      const descCol = findCol(h, DESC_CANDIDATES, {exact:DESC_EXACT, skip:[pnCol]});
+      if(pnCol<0 && descCol<0) continue;
+      const priceCol = pickPriceCol(rows, h, v.idx+1, !!opts.isBom, [pnCol, descCol]);
+      const score = (pnCol>=0?2:0)+(descCol>=0?2:0)+(priceCol>=0?1:0);
+      if(score>bestScore){ bestScore=score; best={headerRowIdx:v.idx, header:h, pnCol, descCol, priceCol}; }
     }
   }
-  return null;
+  return best;
 }
 
-function parseSheet(workbook){
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
-  return rows;
-}
-
+// ---------- Workbook reading ----------
 function parseAllSheets(workbook){
-  return workbook.SheetNames.map(name=>{
+  const out=[];
+  workbook.SheetNames.forEach(name=>{
     const sheet = workbook.Sheets[name];
-    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
-    return {name, rows};
-  }).filter(s=>s.rows.length>0);
+    if(!sheet || !sheet['!ref']) return;
+    // Always read from A1 so row/column numbers in memory == real Excel row/column numbers
+    const rg = XLSX.utils.decode_range(sheet['!ref']); rg.s.r=0; rg.s.c=0;
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:'', range:rg});
+    if(rows.length) out.push({name, rows});
+  });
+  return out;
+}
+async function readWorkbook(file, forEnquiry){
+  const buf = await file.arrayBuffer();
+  const opts = {type:'array', cellDates:true};
+  if(forEnquiry){ opts.cellStyles=true; opts.cellNF=true; }
+  return {wb: XLSX.read(buf, opts), buf};
 }
 
-function extractRecords(rows, sourceLabel, order){
-  const loc = locateHeader(rows);
-  if(!loc) return [];
-  const {headerRowIdx, pnCol, descCol, priceCol} = loc;
-  if(pnCol===-1 && descCol===-1) return [];
+function extractRecords(rows, loc, sourceLabel, order){
+  const {headerRowIdx, pnCol, descCol, priceCol, header} = loc;
+  const pnHead = pnCol>=0 ? hc(header[pnCol]) : '';
   const recs=[];
   for(let r=headerRowIdx+1;r<rows.length;r++){
     const row = rows[r];
     const pn = pnCol>=0 ? row[pnCol] : '';
     const desc = descCol>=0 ? row[descCol] : '';
     if(!pn && !desc) continue;
-    const price = priceCol>=0 ? row[priceCol] : '';
-    recs.push({pnRaw:pn, pnNorm:normPN(pn), desc:desc, descTokens:tokens(desc), price:price, source:sourceLabel, order:order});
+    if(pnHead && hc(pn)===pnHead) continue;                 // repeated header row
+    if(!normPN(pn) && isTotalText(desc)) continue;         // "Total" lines
+    const price = row[priceCol];
+    recs.push({pnRaw:pn, pnNorm:normPN(pn), desc:desc, descTokens:tokens(desc), descKey:descKey(desc),
+               price:price, priceNum:parsePrice(price), source:sourceLabel, order:order});
   }
   return recs;
 }
-
-function extractEnquiry(rows){
-  const loc = locateHeader(rows);
-  if(!loc) return {header:[], pnCol:-1, descCol:-1, priceCol:-1, headerRowIdx:-1, priceColIsNew:false, dataRows:[]};
-  const {headerRowIdx, pnCol, descCol} = loc;
-  let priceCol = loc.priceCol;
-  let priceColIsNew = false;
-  const header = rows[headerRowIdx].slice();
-  if(priceCol===-1){ priceCol = header.length; header.push('Unit Price'); priceColIsNew=true; }
-  const dataRows = [];
-  for(let r=headerRowIdx+1;r<rows.length;r++){ dataRows.push({rowIndex:r, row:rows[r]}); }
-  return {header, pnCol, descCol, priceCol, headerRowIdx, priceColIsNew, dataRows};
+function ingestWorkbook(wb, fileName, order){
+  const sheets = parseAllSheets(wb);
+  if(!sheets.length){ diagnostics.push({file:fileName, sheet:'\u2014', status:'ignored', reason:'File is empty'}); return; }
+  sheets.forEach(s=>{
+    const loc = locateHeader(s.rows, {isBom:true});
+    const base = {file:fileName, sheet:s.name};
+    if(!loc){ diagnostics.push({...base, status:'ignored', reason:'No part-number / description header found (sheet skipped)'}); return; }
+    const hd = i => i>=0 ? String(loc.header[i]).trim() : '\u2014';
+    const info = {...base, headerRow:loc.headerRowIdx+1, pnHeader:hd(loc.pnCol), descHeader:hd(loc.descCol), priceHeader:hd(loc.priceCol)};
+    if(loc.priceCol<0){
+      diagnostics.push({...info, status:'warn', reason:'Part / description columns found, but no column with prices (looked for Unit Price, Unit Rate, Rate, Price, Cost \u2026). Sheet not used.'});
+      return;
+    }
+    const recs = extractRecords(s.rows, loc, fileName+' \u203a '+s.name, order);
+    bomRecords = bomRecords.concat(recs);
+    const priced = recs.filter(r=>r.priceNum!=null).length;
+    diagnostics.push({...info, status:'ok', lines:recs.length, priced:priced, reason:''});
+  });
 }
 
-async function readFile(file){
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, {type:'array', cellStyles:true, cellNF:true, cellDates:true});
-  return wb;
+// ---------- Enquiry sheet ----------
+function extractEnquiry(wb){
+  const out=[];
+  parseAllSheets(wb).forEach(s=>{
+    const loc = locateHeader(s.rows, {isBom:false});
+    if(!loc) return;
+    const dataRows=[];
+    for(let r=loc.headerRowIdx+1;r<s.rows.length;r++) dataRows.push({rowIndex:r, row:s.rows[r]});
+    const maxLen = s.rows.reduce((m,r)=>Math.max(m,r.length),0);
+    let priceCol = loc.priceCol, isNew=false;
+    if(priceCol<0){ priceCol = maxLen; isNew=true; }
+    const statusCol = isNew ? priceCol+1 : maxLen;   // first free column after everything
+    out.push({idx:out.length, sheetName:s.name, header:loc.header, pnCol:loc.pnCol, descCol:loc.descCol,
+              priceCol, priceColIsNew:isNew, statusCol, headerRowIdx:loc.headerRowIdx, dataRows});
+  });
+  if(!out.length) throw new Error('Could not find a part-number or description column in the enquiry sheet. Please check the header row.');
+  return out;
 }
 
-document.getElementById('sampleBtn').addEventListener('click', ()=>{
-  loadSampleAndProcess();
+// ---------- Matching engine ----------
+function buildIndex(){
+  const priced = bomRecords.filter(r=>r.priceNum!=null);
+  const byPN=new Map(), byLoose=new Map(), byDescKey=new Map(), tokIdx=new Map();
+  const push=(m,k,v)=>{ let a=m.get(k); if(!a){a=[];m.set(k,a);} a.push(v); };
+  priced.forEach((r,i)=>{
+    r.id=i; r.descSet=new Set(r.descTokens);
+    if(r.pnNorm){ push(byPN,r.pnNorm,r); push(byLoose,looseKey(r.pnNorm),r); }
+    if(r.descKey.length>=6) push(byDescKey,r.descKey,r);
+    r.descSet.forEach(t=>push(tokIdx,t,i));
+  });
+  return {priced, byPN, byLoose, byDescKey, tokIdx, pnKeys:[...byPN.keys()], counts:new Uint8Array(priced.length)};
+}
+// Same item in many BOMs -> HIGHEST price (= latest). Ties go to the BOM uploaded last.
+function pickHighest(pool){
+  let best=null;
+  for(const r of pool){
+    if(!best || r.priceNum>best.priceNum || (r.priceNum===best.priceNum && r.order>best.order)) best=r;
+  }
+  return best;
+}
+function matchByPN(pnNorm, eTok, idx){
+  // 1) exact, ignoring case / spaces / special characters
+  const exact = idx.byPN.get(pnNorm);
+  if(exact && exact.length) return {pool:exact, type:'exact'};
+  // 2) O/0, I/1/L confusion and leading zeros
+  const lk = looseKey(pnNorm);
+  if(lk.length>=4){ const c=idx.byLoose.get(lk); if(c && c.length) return {pool:c, type:'fuzzy'}; }
+  const descOK = r => !eTok.length || !r.descTokens.length || descScore(eTok, r.descTokens)>=0.25;
+  // 3) one part number contains the other (extra revision letter / prefix)
+  if(pnNorm.length>=6){
+    const pool=[];
+    for(const k of idx.pnKeys){
+      if(k.length<6) continue;
+      const s = k.length<pnNorm.length ? k : pnNorm, l = k.length<pnNorm.length ? pnNorm : k;
+      if(l.includes(s) && s.length/l.length>=0.7) idx.byPN.get(k).forEach(r=>{ if(descOK(r)) pool.push(r); });
+    }
+    if(pool.length) return {pool, type:'fuzzy'};
+  }
+  // 4) typos: small edit distance (description used as a sanity check so FD-2510 is not confused with FD-2511)
+  if(pnNorm.length>=5){
+    let bestD=Infinity, pool=[];
+    for(const k of idx.pnKeys){
+      if(k.length<5) continue;
+      const maxLen = Math.max(k.length, pnNorm.length);
+      const thresh = Math.max(1, Math.floor(maxLen*0.2));
+      if(Math.abs(k.length-pnNorm.length)>thresh) continue;
+      const d = levenshtein(k, pnNorm);
+      if(d>thresh || d>bestD) continue;
+      const recs = idx.byPN.get(k).filter(descOK);
+      if(!recs.length) continue;
+      if(d<bestD){ bestD=d; pool=recs.slice(); } else pool=pool.concat(recs);
+    }
+    if(pool.length) return {pool, type:'fuzzy'};
+  }
+  return null;
+}
+function matchByDesc(eTok, eKey, idx){
+  if(eKey.length>=6){ const ex=idx.byDescKey.get(eKey); if(ex && ex.length) return {pool:ex, score:1}; }
+  const A = new Set(eTok);
+  if(!A.size) return null;
+  const counts = idx.counts, touched=[];
+  A.forEach(t=>{
+    const list = idx.tokIdx.get(t);
+    if(!list) return;
+    for(const id of list){ if(counts[id]===0) touched.push(id); counts[id]++; }
+  });
+  let best=0; const scored=[];
+  for(const id of touched){
+    const inter=counts[id]; counts[id]=0;
+    if(inter<2) continue;                                   // at least two shared words
+    const B = idx.priced[id].descSet.size;
+    const jac = inter/(A.size+B-inter);
+    const minS = Math.min(A.size,B), r = inter/minS;
+    const ov = (minS>=3 && r>=0.8) ? r*0.85 : 0;
+    const s = Math.max(jac, ov);
+    scored.push([id,s]); if(s>best) best=s;
+  }
+  if(best<0.3) return null;
+  return {pool: scored.filter(x=>x[1]>=best-0.05).map(x=>idx.priced[x[0]]), score:best};
+}
+function matchRow(pnVal, descVal, idx){
+  const pnNorm = normPN(pnVal), eTok = tokens(descVal), eKey = descKey(descVal);
+  let pool=null, type='none', descScorePct=null;
+  if(pnNorm){ const m=matchByPN(pnNorm, eTok, idx); if(m){ pool=m.pool; type=m.type; } }
+  if(!pool && descVal){
+    const m=matchByDesc(eTok, eKey, idx);
+    if(m){ pool=m.pool; type='desc'; descScorePct=Math.round(m.score*100); }
+  }
+  if(!pool) return {type:'none'};
+  const best = pickHighest(pool);
+  let mn=Infinity, mx=0; pool.forEach(r=>{ if(r.priceNum<mn) mn=r.priceNum; if(r.priceNum>mx) mx=r.priceNum; });
+  return {type, descScorePct, nCand:pool.length, best, minP:mn, maxP:mx};
+}
+
+async function runMatching(){
+  const idx = buildIndex();
+  resultRows = [];
+  const total = enqSheets.reduce((a,s)=>a+s.dataRows.length,0);
+  let done=0;
+  for(const si of enqSheets){
+    const pnHead = si.pnCol>=0 ? hc(si.header[si.pnCol]) : '';
+    for(const {rowIndex,row} of si.dataRows){
+      if(++done%100===0){ setStatus('Matching\u2026 '+done+' / '+total); await tick(); }
+      const pnVal = si.pnCol>=0 ? row[si.pnCol] : '';
+      const descVal = si.descCol>=0 ? row[si.descCol] : '';
+      if(!pnVal && !descVal) continue;
+      if(pnHead && hc(pnVal)===pnHead) continue;
+      if(!normPN(pnVal) && isTotalText(descVal)) continue;
+      const m = matchRow(pnVal, descVal, idx);
+      const existing = si.priceColIsNew ? null : parsePrice(row[si.priceCol]);
+      resultRows.push({
+        sheetIdx:si.idx, sheetName:si.sheetName, rowIndex,
+        pn:pnVal, desc:descVal,
+        price: m.best ? m.best.priceNum : '',
+        type:m.type, descScorePct:m.descScorePct||null, nCand:m.nCand||0, minP:m.minP, maxP:m.maxP,
+        matchedPn: m.best ? m.best.pnRaw : '', matchedDesc: m.best ? m.best.desc : '', source: m.best ? m.best.source : '',
+        existing
+      });
+    }
+  }
+}
+
+// ---------- Results UI ----------
+const TYPE_LABEL = {exact:'Exact', fuzzy:'Near match', desc:'Partial (by description)', none:'Not found'};
+function fmtPrice(n){ return Number(n).toLocaleString(undefined,{maximumFractionDigits:2}); }
+function stampText(r){
+  const multi = r.nCand>1 ? ' \u00b7 highest of '+r.nCand : '';
+  if(r.type==='exact') return 'Exact'+multi;
+  if(r.type==='fuzzy') return 'Near match'+multi;
+  if(r.type==='desc') return 'Partially matching \u2014 '+r.descScorePct+'%'+multi;
+  return 'Not found';
+}
+function renderStats(){
+  const c = {exact:0, fuzzy:0, desc:0, none:0};
+  resultRows.forEach(r=>c[r.type]++);
+  const card = (f,n,l,color)=>`<div class="stat clickable ${filterType===f?'active':''}" data-f="${f}"><div class="n" ${color?`style="color:var(--${color})"`:''}>${n}</div><div class="l">${l}</div></div>`;
+  $('stats').innerHTML =
+    card('all', resultRows.length, 'Total lines') +
+    card('exact', c.exact, 'Exact match', 'green') +
+    card('fuzzy', c.fuzzy, 'Near match (typo/format)', 'amber') +
+    card('desc', c.desc, 'Partial (by description)', 'skyblue') +
+    card('none', c.none, 'Not found', 'red');
+  $('stats').querySelectorAll('.stat').forEach(el=>el.addEventListener('click', ()=>{
+    filterType = el.getAttribute('data-f'); renderStats(); renderTable();
+  }));
+}
+function renderTable(){
+  const multiSheet = enqSheets.length>1;
+  $('resultsTable').querySelector('thead').innerHTML =
+    '<tr><th>Part number</th><th>Description</th><th style="text-align:right;">Matched price</th><th>Match type</th><th>Matched against</th></tr>';
+  const q = searchQ.trim().toLowerCase();
+  const rows = resultRows.filter(r=>{
+    if(filterType!=='all' && r.type!==filterType) return false;
+    if(!q) return true;
+    return [r.pn,r.desc,r.matchedPn,r.matchedDesc,r.source].some(x=>String(x||'').toLowerCase().includes(q));
+  });
+  $('filterLabel').textContent = rows.length+' of '+resultRows.length+' lines'+(filterType!=='all' ? ' \u00b7 filter: '+TYPE_LABEL[filterType] : '');
+  if(!rows.length){ $('resultsTable').querySelector('tbody').innerHTML='<tr><td colspan="5" class="empty">No lines match this filter.</td></tr>'; return; }
+  $('resultsTable').querySelector('tbody').innerHTML = rows.map(r=>{
+    let against = r.matchedPn ? esc(r.matchedPn)+' \u2014 '+esc(r.source)
+                : (r.matchedDesc ? esc(r.matchedDesc)+' \u2014 '+esc(r.source) : '\u2014');
+    if(r.nCand>1 && r.minP!==r.maxP) against += '<br>Prices found: '+fmtPrice(r.minP)+' \u2013 '+fmtPrice(r.maxP);
+    if(r.existing!=null) against += '<br><b>Sheet already has '+fmtPrice(r.existing)+'</b>';
+    return `<tr>
+      <td class="pn">${esc(r.pn)}${multiSheet?`<div class="src">${esc(r.sheetName)}</div>`:''}</td>
+      <td>${esc(r.desc)}</td>
+      <td class="price">${r.price!=='' ? fmtPrice(r.price) : '\u2014'}</td>
+      <td><span class="stamp ${r.type}">${esc(stampText(r))}</span></td>
+      <td class="src">${against}</td>
+    </tr>`;
+  }).join('');
+}
+function renderDiagnostics(){
+  const warn = diagnostics.filter(d=>d.status==='warn'||d.status==='error').length;
+  const cls = {ok:'ok', warn:'warn', error:'err', ignored:'muted'};
+  const lbl = {ok:'Read', warn:'Check', error:'Error', ignored:'Skipped'};
+  $('diagTable').innerHTML =
+    '<thead><tr><th>File \u203a sheet</th><th>Header row</th><th>Part no. column</th><th>Description column</th><th>Price column</th><th>Lines</th><th>With price</th><th>Status</th></tr></thead><tbody>' +
+    diagnostics.map(d=>`<tr class="dg-${cls[d.status]}">
+      <td>${esc(d.file)} \u203a ${esc(d.sheet)}</td><td>${d.headerRow||'\u2014'}</td>
+      <td>${esc(d.pnHeader||'\u2014')}</td><td>${esc(d.descHeader||'\u2014')}</td><td><b>${esc(d.priceHeader||'\u2014')}</b></td>
+      <td>${d.lines!=null?d.lines:'\u2014'}</td><td>${d.priced!=null?d.priced:'\u2014'}</td>
+      <td>${lbl[d.status]}${d.reason?' \u2014 '+esc(d.reason):''}</td></tr>`).join('') + '</tbody>';
+  $('diagBox').open = warn>0;
+  $('diagSummary').textContent = 'Data check \u2014 how each historical BOM was read' + (warn? ' ('+warn+' need attention)':'');
+}
+function renderAll(){
+  $('resultsPanel').style.display='block';
+  const nFiles = new Set(bomRecords.map(r=>String(r.source).split(' \u203a ')[0])).size;
+  const nPriced = bomRecords.filter(r=>r.priceNum!=null).length;
+  $('loadInfo').innerHTML = 'Read <b>'+bomRecords.length+'</b> BOM lines from <b>'+nFiles+'</b> file(s); <b>'+nPriced+'</b> have a usable price. '
+    + 'When an item appears in several BOMs, the <b>highest price</b> is filled. Always review Near / Partial matches before submitting.';
+  renderStats(); renderDiagnostics(); renderTable();
+}
+$('searchBox').addEventListener('input', e=>{ searchQ = e.target.value; renderTable(); });
+
+// ---------- Run ----------
+async function finishRun(){
+  const priced = bomRecords.filter(r=>r.priceNum!=null).length;
+  if(!priced){
+    renderDiagnostics(); $('resultsPanel').style.display='block'; $('stats').innerHTML=''; $('resultsTable').querySelector('tbody').innerHTML='';
+    throw new Error('No usable prices were found in the historical BOM files. See the data check below for what was read from each file.');
+  }
+  filterType='all'; searchQ=''; $('searchBox').value='';
+  await runMatching();
+  renderAll();
+}
+function showError(err){ showMsg('err', '<b>Could not complete.</b> '+esc(err && err.message ? err.message : err)); }
+
+$('processBtn').addEventListener('click', async ()=>{
+  const btn=$('processBtn'); btn.disabled=true; showMsg();
+  try{
+    bomRecords=[]; diagnostics=[];
+    for(let i=0;i<bomFiles.length;i++){
+      setStatus('Reading BOM '+(i+1)+' of '+bomFiles.length+': '+bomFiles[i].name+' \u2026'); await tick();
+      try{
+        const {wb} = await readWorkbook(bomFiles[i], false);
+        ingestWorkbook(wb, bomFiles[i].name, i);
+      }catch(err){
+        diagnostics.push({file:bomFiles[i].name, sheet:'\u2014', status:'error',
+          reason:'Could not open this file ('+(err && err.message ? err.message : err)+'). If it is password-protected or corrupted, fix it and upload again.'});
+      }
+    }
+    setStatus('Reading enquiry sheet \u2026'); await tick();
+    const {wb:enqWb, buf} = await readWorkbook(enqFile, true);
+    enqSheets = extractEnquiry(enqWb);
+    window.__enqOriginalBytes = buf; window.__enqWb = enqWb; window.__enqFileName = enqFile.name;
+    await finishRun();
+  }catch(err){ console.error(err); showError(err); }
+  finally{ setStatus(''); btn.disabled = !(bomFiles.length && enqFile); }
 });
 
+// ---------- Sample data ----------
+$('sampleBtn').addEventListener('click', ()=>{ loadSampleAndProcess(); });
 function sampleWorkbookFromAOA(aoa){
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-  return wb;
+  const ws = XLSX.utils.aoa_to_sheet(aoa); const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1'); return wb;
 }
-
 function sampleWorkbookMultiSheet(sheetsObj){
   const wb = XLSX.utils.book_new();
-  Object.keys(sheetsObj).forEach(name=>{
-    const ws = XLSX.utils.aoa_to_sheet(sheetsObj[name]);
-    XLSX.utils.book_append_sheet(wb, ws, name);
-  });
+  Object.keys(sheetsObj).forEach(name=>XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetsObj[name]), name));
   return wb;
 }
-
 function buildSampleData(){
   const bom1 = [
     ['Part No','Description','Unit Price'],
@@ -503,7 +884,7 @@ function buildSampleData(){
     ['AUT-PLC-CPU1','PLC CPU module, 32 I/O',62000],
   ];
   const bom2 = [
-    ['Part No','Description','Unit Price'],
+    ['Part No','Description','Unit Rate'],
     ['FD-2510-A','Fire damper 250x100mm galvanised',4350],
     ['FA-PNL-08','Fire alarm panel 8 zone conventional',27500],
     ['HVDUCT300','HVAC duct 300mm dia GI 24 gauge',920],
@@ -521,10 +902,7 @@ function buildSampleData(){
       ['PART NUMBER','DESCRIPTION','RATE'],
       ['VLV-BFLY-150','Butterfly valve 150mm wafer type',7200],
     ],
-    'Notes': [
-      ['Revision history'],
-      ['Rev A - issued for tender'],
-    ],
+    'Notes': [['Revision history'],['Rev A - issued for tender']],
   };
   const enquiry = [
     ['Part Number','Description','Unit Price'],
@@ -541,187 +919,24 @@ function buildSampleData(){
   ];
   return {bom1,bom2,bom3,enquiry};
 }
-
 async function loadSampleAndProcess(){
-  const s = buildSampleData();
-  const bomWbs = [
-    {wb: sampleWorkbookFromAOA(s.bom1), name:'BOM_Project_A_2025.xlsx'},
-    {wb: sampleWorkbookFromAOA(s.bom2), name:'BOM_Project_B_2026-03.xlsx'},
-    {wb: sampleWorkbookMultiSheet(s.bom3), name:'BOM_Project_C_2026-06.xlsx'},
-  ];
-  bomRecords = [];
-  bomWbs.forEach((b,idx)=>{
-    parseAllSheets(b.wb).forEach(s2=>{
-      bomRecords = bomRecords.concat(extractRecords(s2.rows, b.name+' \u203a '+s2.name, idx));
-    });
-  });
-  const enqWb = sampleWorkbookFromAOA(s.enquiry);
-  const parsedEnq = extractEnquiryFromWorkbook(enqWb);
-  window.__enqOriginalBytes = XLSX.write(enqWb, {type:'array', bookType:'xlsx'});
-  window.__enqFileName = 'sample_enquiry.xlsx';
-  runMatching(parsedEnq);
+  showMsg();
+  try{
+    const s = buildSampleData();
+    bomRecords=[]; diagnostics=[];
+    ingestWorkbook(sampleWorkbookFromAOA(s.bom1),'BOM_Project_A_2025.xlsx',0);
+    ingestWorkbook(sampleWorkbookFromAOA(s.bom2),'BOM_Project_B_2026-03.xlsx',1);
+    ingestWorkbook(sampleWorkbookMultiSheet(s.bom3),'BOM_Project_C_2026-06.xlsx',2);
+    const enqWb = sampleWorkbookFromAOA(s.enquiry);
+    enqSheets = extractEnquiry(enqWb);
+    window.__enqOriginalBytes = XLSX.write(enqWb, {type:'array', bookType:'xlsx'});
+    window.__enqWb = enqWb; window.__enqFileName = 'sample_enquiry.xlsx';
+    await finishRun();
+  }catch(err){ console.error(err); showError(err); }
+  finally{ setStatus(''); }
 }
 
-document.getElementById('processBtn').addEventListener('click', async ()=>{
-  bomRecords = [];
-  for(let i=0;i<bomFiles.length;i++){
-    const wb = await readFile(bomFiles[i]);
-    parseAllSheets(wb).forEach(s2=>{
-      bomRecords = bomRecords.concat(extractRecords(s2.rows, bomFiles[i].name+' \u203a '+s2.name, i));
-    });
-  }
-  const enqBuf = await enqFile.arrayBuffer();
-  const enqWb = XLSX.read(enqBuf, {type:'array', cellStyles:true, cellNF:true, cellDates:true});
-  const parsedEnq = extractEnquiryFromWorkbook(enqWb);
-  window.__enqOriginalBytes = enqBuf;
-  window.__enqFileName = enqFile.name;
-  runMatching(parsedEnq);
-});
-
-function extractEnquiryFromWorkbook(wb){
-  const sheets = parseAllSheets(wb);
-  for(const s2 of sheets){
-    const loc = locateHeader(s2.rows);
-    if(loc && (loc.pnCol>=0 || loc.descCol>=0)){
-      const parsed = extractEnquiry(s2.rows);
-      parsed.sheetName = s2.name;
-      return parsed;
-    }
-  }
-  if(sheets.length){
-    const parsed = extractEnquiry(sheets[0].rows);
-    parsed.sheetName = sheets[0].name;
-    return parsed;
-  }
-  return {header:[], pnCol:-1, descCol:-1, priceCol:-1, headerRowIdx:-1, priceColIsNew:false, dataRows:[], sheetName:''};
-}
-
-function pickBestCandidate(candidates, enqDescVal){
-  if(candidates.length===1) return {rec:candidates[0], viaDesc:false, descScorePct:null};
-  if(enqDescVal){
-    const eTokens = tokens(enqDescVal);
-    let bestRec=null, bestScore=-1;
-    for(const r of candidates){
-      const sc = jaccard(eTokens, r.descTokens);
-      if(sc>bestScore){ bestScore=sc; bestRec=r; }
-    }
-    // Only trust description if it actually discriminates between candidates
-    // (i.e. not all candidates score identically, and it clears a minimal bar).
-    const allSame = candidates.every(r=>Math.abs(jaccard(eTokens, r.descTokens)-bestScore)<1e-9);
-    if(bestScore>0.15 && !allSame){
-      return {rec:bestRec, viaDesc:true, descScorePct:Math.round(bestScore*100)};
-    }
-  }
-  const rec = candidates.reduce((a,b)=> b.order>a.order ? b : a);
-  return {rec, viaDesc:false, descScorePct:null};
-}
-
-function runMatching(parsedEnq){
-  const {header, pnCol, descCol, priceCol, headerRowIdx, priceColIsNew, sheetName, dataRows} = parsedEnq;
-  resultRows = [];
-  for(const {rowIndex, row} of dataRows){
-    const pnVal = pnCol>=0 ? row[pnCol] : '';
-    const descVal = descCol>=0 ? row[descCol] : '';
-    if(!pnVal && !descVal) continue;
-    const pnNorm = normPN(pnVal);
-    let best=null, type='none', descScorePct=null, disambiguatedByDesc=false;
-
-    if(pnNorm){
-      const exact = bomRecords.filter(r=>r.pnNorm && r.pnNorm===pnNorm);
-      if(exact.length){
-        const picked = pickBestCandidate(exact, descVal);
-        best = picked.rec; type='exact';
-        if(picked.viaDesc){ disambiguatedByDesc=true; descScorePct=picked.descScorePct; }
-      } else {
-        let fuzzyDist=Infinity;
-        for(const r of bomRecords){
-          if(!r.pnNorm) continue;
-          const maxLen = Math.max(r.pnNorm.length, pnNorm.length);
-          const thresh = Math.max(1, Math.floor(maxLen*0.2));
-          const d = levenshtein(r.pnNorm, pnNorm);
-          if(d<=thresh && d<fuzzyDist){ fuzzyDist=d; }
-        }
-        if(fuzzyDist!==Infinity){
-          const candidates = bomRecords.filter(r=>{
-            if(!r.pnNorm) return false;
-            const maxLen = Math.max(r.pnNorm.length, pnNorm.length);
-            const thresh = Math.max(1, Math.floor(maxLen*0.2));
-            return levenshtein(r.pnNorm,pnNorm)===fuzzyDist && levenshtein(r.pnNorm,pnNorm)<=thresh;
-          });
-          const picked = pickBestCandidate(candidates, descVal);
-          best = picked.rec; type='fuzzy';
-          if(picked.viaDesc){ disambiguatedByDesc=true; descScorePct=picked.descScorePct; }
-        }
-      }
-    }
-
-    if(!best && descVal){
-      const eTokens = tokens(descVal);
-      let descBest=null, descScore=0;
-      for(const r of bomRecords){
-        const sc = jaccard(eTokens, r.descTokens);
-        if(sc>descScore){ descScore=sc; descBest=r; }
-      }
-      if(descBest && descScore>=0.3){
-        best=descBest; type='desc'; descScorePct=Math.round(descScore*100);
-      }
-    }
-
-    resultRows.push({
-      rowIndex,
-      pn: pnVal, desc: descVal,
-      price: best ? best.price : '',
-      type: type,
-      descScorePct: descScorePct,
-      disambiguatedByDesc: disambiguatedByDesc,
-      matchedPn: best ? best.pnRaw : '',
-      matchedDesc: best ? best.desc : '',
-      source: best ? best.source : ''
-    });
-  }
-  renderResults(header, pnCol, priceCol, headerRowIdx, priceColIsNew, sheetName);
-}
-
-function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-function renderResults(header, pnCol, priceCol, headerRowIdx, priceColIsNew, sheetName){
-  document.getElementById('resultsPanel').style.display='block';
-  const counts = {exact:0, fuzzy:0, desc:0, none:0};
-  resultRows.forEach(r=>counts[r.type]++);
-  document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="n">${resultRows.length}</div><div class="l">Total lines</div></div>
-    <div class="stat"><div class="n" style="color:var(--green)">${counts.exact}</div><div class="l">Exact match</div></div>
-    <div class="stat"><div class="n" style="color:var(--amber)">${counts.fuzzy}</div><div class="l">Near match (typo/format)</div></div>
-    <div class="stat"><div class="n" style="color:var(--skyblue)">${counts.desc}</div><div class="l">Partial (by description)</div></div>
-    <div class="stat"><div class="n" style="color:var(--red)">${counts.none}</div><div class="l">Not found</div></div>
-  `;
-  const thead = document.querySelector('#resultsTable thead');
-  const tbody = document.querySelector('#resultsTable tbody');
-  thead.innerHTML = `<tr><th>Part number</th><th>Description</th><th style="text-align:right;">Matched price</th><th>Match type</th><th>Matched against</th></tr>`;
-  tbody.innerHTML = resultRows.map(r=>{
-    const stampClass = r.type==='exact'?'exact':r.type==='fuzzy'?'fuzzy':r.type==='desc'?'desc':'none';
-    let stampText;
-    if(r.type==='exact') stampText = r.disambiguatedByDesc ? 'Exact (multiple \u2014 by desc '+r.descScorePct+'%)' : 'Exact';
-    else if(r.type==='fuzzy') stampText = r.disambiguatedByDesc ? 'Near match (multiple \u2014 by desc '+r.descScorePct+'%)' : 'Near match';
-    else if(r.type==='desc') stampText='Partially matching \u2014 '+r.descScorePct+'%';
-    else stampText='Not found';
-    const matchedAgainst = r.matchedPn
-      ? esc(r.matchedPn)+' \u2014 '+esc(r.source)
-      : (r.matchedDesc ? esc(r.matchedDesc)+' \u2014 '+esc(r.source) : '\u2014');
-    return `<tr>
-      <td class="pn">${esc(r.pn)}</td>
-      <td>${esc(r.desc)}</td>
-      <td class="price">${r.price!==''? (typeof r.price==='number'? r.price.toLocaleString() : esc(r.price)) : '\u2014'}</td>
-      <td><span class="stamp ${stampClass}">${stampText}</span></td>
-      <td class="src">${matchedAgainst}</td>
-    </tr>`;
-  }).join('');
-  window.__lastPriceCol = priceCol;
-  window.__lastHeaderRowIdx = headerRowIdx;
-  window.__lastPriceColIsNew = priceColIsNew;
-  window.__lastSheetName = sheetName;
-}
-
+// ---------- Download ----------
 function colIndexToLetter(idx){
   let s='', n=idx+1;
   while(n>0){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26); }
@@ -733,14 +948,22 @@ function parseCellRef(ref){
   for(let i=0;i<m[1].length;i++){ col = col*26 + (m[1].charCodeAt(i)-64); }
   return { col: col-1, row: parseInt(m[2],10) };
 }
+function statusText(r){
+  let t;
+  if(r.type==='exact') t = 'Exact match'+(r.nCand>1?' (highest of '+r.nCand+' prices)':'');
+  else if(r.type==='fuzzy') t = 'Near match \u2013 please verify'+(r.matchedPn?' (BOM part no: '+r.matchedPn+')':'');
+  else if(r.type==='desc') t = 'Description match '+r.descScorePct+'% \u2013 please verify';
+  else t = 'Not found \u2013 price manually';
+  return t;
+}
+function shouldWrite(r, opts){
+  return r.price!=='' && r.price!=null && (opts.overwrite || r.existing==null);
+}
 
 async function resolveSheetPath(zip, sheetName){
-  const wbXmlText = await zip.file('xl/workbook.xml').async('string');
-  const relsText = await zip.file('xl/_rels/workbook.xml.rels').async('string');
-  const parser = new DOMParser();
-  const wbDoc = parser.parseFromString(wbXmlText, 'application/xml');
-  const relsDoc = parser.parseFromString(relsText, 'application/xml');
-  const sheets = wbDoc.getElementsByTagName('sheet');
+  const wbDoc = new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'), 'application/xml');
+  const relsDoc = new DOMParser().parseFromString(await zip.file('xl/_rels/workbook.xml.rels').async('string'), 'application/xml');
+  const sheets = wbDoc.getElementsByTagNameNS('*','sheet');
   let rId=null;
   for(let i=0;i<sheets.length;i++){
     if(sheets[i].getAttribute('name')===sheetName){
@@ -749,7 +972,7 @@ async function resolveSheetPath(zip, sheetName){
     }
   }
   if(!rId) return null;
-  const rels = relsDoc.getElementsByTagName('Relationship');
+  const rels = relsDoc.getElementsByTagNameNS('*','Relationship');
   for(let i=0;i<rels.length;i++){
     if(rels[i].getAttribute('Id')===rId){
       const target = rels[i].getAttribute('Target');
@@ -759,43 +982,31 @@ async function resolveSheetPath(zip, sheetName){
   return null;
 }
 
-async function writeBackFormatted(){
-  if(!window.__enqOriginalBytes){
-    alert('Original file data is not available. Please re-run the match first.');
-    return;
-  }
-  const zip = await JSZip.loadAsync(window.__enqOriginalBytes);
-  const sheetName = window.__lastSheetName;
-  const sheetPath = await resolveSheetPath(zip, sheetName);
-  if(!sheetPath || !zip.file(sheetPath)){
-    alert('Could not locate the worksheet inside the Excel file to write into.');
-    return;
-  }
-  const xmlText = await zip.file(sheetPath).async('string');
-  const parser = new DOMParser();
-  const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+async function patchSheetXml(zip, si, results, opts){
+  const sheetPath = await resolveSheetPath(zip, si.sheetName);
+  if(!sheetPath || !zip.file(sheetPath)) throw new Error('Could not locate worksheet "'+si.sheetName+'" inside the Excel file.');
+  const xmlDoc = new DOMParser().parseFromString(await zip.file(sheetPath).async('string'), 'application/xml');
+  if(xmlDoc.getElementsByTagName('parsererror').length) throw new Error('Worksheet "'+si.sheetName+'" could not be read.');
   const ns = xmlDoc.documentElement.namespaceURI;
-  const sheetDataEl = xmlDoc.getElementsByTagName('sheetData')[0];
+  const sheetDataEl = xmlDoc.getElementsByTagNameNS('*','sheetData')[0];
+  const rowMap = new Map();
+  Array.from(sheetDataEl.children).forEach(el=>{ if(el.localName==='row') rowMap.set(parseInt(el.getAttribute('r'),10), el); });
 
   function getOrCreateRow(rowNumber){
-    const rows = sheetDataEl.getElementsByTagName('row');
-    for(let i=0;i<rows.length;i++){
-      if(parseInt(rows[i].getAttribute('r'),10)===rowNumber) return rows[i];
-    }
+    if(rowMap.has(rowNumber)) return rowMap.get(rowNumber);
     const rowEl = xmlDoc.createElementNS(ns,'row');
     rowEl.setAttribute('r', String(rowNumber));
-    let inserted=false;
-    for(let i=0;i<rows.length;i++){
-      if(parseInt(rows[i].getAttribute('r'),10)>rowNumber){ sheetDataEl.insertBefore(rowEl, rows[i]); inserted=true; break; }
-    }
-    if(!inserted) sheetDataEl.appendChild(rowEl);
+    let ref=null;
+    for(const [n,el] of rowMap){ if(n>rowNumber && (!ref || n<parseInt(ref.getAttribute('r'),10))) ref=el; }
+    if(ref) sheetDataEl.insertBefore(rowEl, ref); else sheetDataEl.appendChild(rowEl);
+    rowMap.set(rowNumber,rowEl);
     return rowEl;
   }
-
+  let maxCol=0, maxRow=0;
   function setCell(rowNumber, colIndex, value, isText){
     const rowEl = getOrCreateRow(rowNumber);
-    const cellRef = colIndexToLetter(colIndex)+rowNumber;
-    const cells = rowEl.getElementsByTagName('c');
+    rowEl.removeAttribute('spans');
+    const cells = rowEl.getElementsByTagNameNS('*','c');
     let cellEl=null, insertBeforeEl=null;
     for(let i=0;i<cells.length;i++){
       const ci = parseCellRef(cells[i].getAttribute('r')).col;
@@ -804,77 +1015,99 @@ async function writeBackFormatted(){
     }
     if(!cellEl){
       cellEl = xmlDoc.createElementNS(ns,'c');
-      cellEl.setAttribute('r', cellRef);
+      cellEl.setAttribute('r', colIndexToLetter(colIndex)+rowNumber);
       if(insertBeforeEl) rowEl.insertBefore(cellEl, insertBeforeEl); else rowEl.appendChild(cellEl);
     } else {
       while(cellEl.firstChild) cellEl.removeChild(cellEl.firstChild);
     }
     if(isText){
       cellEl.setAttribute('t','inlineStr');
-      const isEl = xmlDoc.createElementNS(ns,'is');
-      const tEl = xmlDoc.createElementNS(ns,'t');
-      tEl.textContent = String(value);
-      isEl.appendChild(tEl);
-      cellEl.appendChild(isEl);
+      const isEl = xmlDoc.createElementNS(ns,'is'), tEl = xmlDoc.createElementNS(ns,'t');
+      tEl.textContent = String(value); isEl.appendChild(tEl); cellEl.appendChild(isEl);
     } else {
       cellEl.removeAttribute('t');
-      const vEl = xmlDoc.createElementNS(ns,'v');
-      vEl.textContent = String(value);
-      cellEl.appendChild(vEl);
+      const vEl = xmlDoc.createElementNS(ns,'v'); vEl.textContent = String(value); cellEl.appendChild(vEl);
     }
+    if(colIndex>maxCol) maxCol=colIndex; if(rowNumber>maxRow) maxRow=rowNumber;
   }
 
-  const priceCol = window.__lastPriceCol;
-  const headerRowIdx = window.__lastHeaderRowIdx;
-  if(window.__lastPriceColIsNew){
-    setCell(headerRowIdx+1, priceCol, 'Unit Price', true);
-  }
-  let maxColUsed = priceCol, maxRowUsed = headerRowIdx+1;
-  resultRows.forEach(r=>{
-    if(r.price===''||r.price===null||r.price===undefined) return;
+  const hdrRowNumber = si.headerRowIdx+1;
+  if(si.priceColIsNew) setCell(hdrRowNumber, si.priceCol, 'Unit Price', true);
+  if(opts.status) setCell(hdrRowNumber, si.statusCol, 'Price Match Status', true);
+  results.forEach(r=>{
     const rowNumber = r.rowIndex+1;
-    if(typeof r.price==='number'){
-      setCell(rowNumber, priceCol, r.price, false);
-    } else {
-      const num = parseFloat(r.price);
-      if(!isNaN(num) && String(r.price).trim()!=='' && String(num)===String(r.price).trim()){
-        setCell(rowNumber, priceCol, num, false);
-      } else {
-        setCell(rowNumber, priceCol, String(r.price), true);
-      }
+    if(shouldWrite(r, opts)) setCell(rowNumber, si.priceCol, r.price, false);
+    if(opts.status){
+      let t = statusText(r);
+      if(r.price!=='' && !shouldWrite(r,opts)) t += ' | existing price kept';
+      setCell(rowNumber, si.statusCol, t, true);
     }
-    if(rowNumber>maxRowUsed) maxRowUsed=rowNumber;
   });
 
-  const dimEl = xmlDoc.getElementsByTagName('dimension')[0];
-  if(dimEl){
+  const dimEl = xmlDoc.getElementsByTagNameNS('*','dimension')[0];
+  if(dimEl && dimEl.getAttribute('ref')){
     const refAttr = dimEl.getAttribute('ref');
-    if(refAttr && refAttr.includes(':')){
-      const [startRef,endRef] = refAttr.split(':');
-      const end = parseCellRef(endRef);
-      const newEndCol = Math.max(end.col, maxColUsed);
-      const newEndRow = Math.max(end.row, maxRowUsed);
-      dimEl.setAttribute('ref', startRef+':'+colIndexToLetter(newEndCol)+newEndRow);
-    }
+    const [startRef,endRef] = refAttr.includes(':') ? refAttr.split(':') : [refAttr,refAttr];
+    const end = parseCellRef(endRef);
+    dimEl.setAttribute('ref', startRef+':'+colIndexToLetter(Math.max(end.col,maxCol))+Math.max(end.row,maxRow));
   }
-
-  const serializer = new XMLSerializer();
-  zip.file(sheetPath, serializer.serializeToString(xmlDoc));
-
-  const outBlob = await zip.generateAsync({type:'blob'});
-  const baseName = (window.__enqFileName || 'enquiry.xlsx').replace(/\.xlsx?$/i,'');
-  const url = URL.createObjectURL(outBlob);
-  const a = document.createElement('a');
-  a.href = url; a.download = baseName+'_priced.xlsx';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  zip.file(sheetPath, new XMLSerializer().serializeToString(xmlDoc));
 }
 
-document.getElementById('downloadBtn').addEventListener('click', ()=>{
-  writeBackFormatted().catch(err=>{
-    console.error(err);
-    alert('Something went wrong writing the file: '+err.message);
+// Original .xlsx/.xlsm: edit only the price cells inside the file so all formatting, logos, formulas stay untouched
+async function writeBackXlsx(bytes, opts){
+  const zip = await JSZip.loadAsync(bytes);
+  for(const si of enqSheets){
+    await patchSheetXml(zip, si, resultRows.filter(r=>r.sheetIdx===si.idx), opts);
+  }
+  return zip.generateAsync({type:'uint8array', compression:'DEFLATE'});
+}
+// .xls / .csv / .xlsb enquiries: rebuild as .xlsx with the prices added
+function buildFallbackBytes(opts){
+  const wb = window.__enqWb;
+  enqSheets.forEach(si=>{
+    const ws = wb.Sheets[si.sheetName];
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    const put = (r,c,v,isText)=>{
+      ws[XLSX.utils.encode_cell({r,c})] = isText ? {t:'s', v:String(v)} : {t:'n', v:v};
+      if(r>range.e.r) range.e.r=r; if(c>range.e.c) range.e.c=c;
+    };
+    if(si.priceColIsNew) put(si.headerRowIdx, si.priceCol, 'Unit Price', true);
+    if(opts.status) put(si.headerRowIdx, si.statusCol, 'Price Match Status', true);
+    resultRows.filter(r=>r.sheetIdx===si.idx).forEach(r=>{
+      if(shouldWrite(r,opts)) put(r.rowIndex, si.priceCol, r.price, false);
+      if(opts.status){
+        let t = statusText(r);
+        if(r.price!=='' && !shouldWrite(r,opts)) t += ' | existing price kept';
+        put(r.rowIndex, si.statusCol, t, true);
+      }
+    });
+    ws['!ref'] = XLSX.utils.encode_range(range);
   });
+  return new Uint8Array(XLSX.write(wb, {type:'array', bookType:'xlsx', cellStyles:true}));
+}
+
+$('downloadBtn').addEventListener('click', async ()=>{
+  showMsg();
+  try{
+    if(!window.__enqOriginalBytes || !resultRows.length) throw new Error('Nothing to download yet \u2014 run the match first.');
+    setStatus('Preparing file\u2026'); await tick();
+    const opts = {status:$('optStatus').checked, overwrite:$('optOverwrite').checked};
+    const head = new Uint8Array(window.__enqOriginalBytes);
+    const isZip = head[0]===0x50 && head[1]===0x4B;
+    const orig = window.__enqFileName || 'enquiry.xlsx';
+    const m = orig.match(/\.(\w+)$/); const origExt = m ? m[1].toLowerCase() : 'xlsx';
+    let bytes, ext='xlsx';
+    if(isZip && (origExt==='xlsx' || origExt==='xlsm')){ bytes = await writeBackXlsx(window.__enqOriginalBytes, opts); ext=origExt; }
+    else { bytes = buildFallbackBytes(opts); }
+    const blob = new Blob([bytes], {type: ext==='xlsm' ? 'application/vnd.ms-excel.sheet.macroEnabled.12' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = orig.replace(/\.\w+$/,'') + '_priced.' + ext;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  }catch(err){ console.error(err); showError(err); }
+  finally{ setStatus(''); }
 });
 </script>
 </body>
